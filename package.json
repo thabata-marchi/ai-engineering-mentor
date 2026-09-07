@@ -1,0 +1,26 @@
+{
+  "name": "ai-engineering-mentor",
+  "version": "0.1.0",
+  "description": "Mentor de programação com RAG — laboratório de estudo (pós em Engenharia de IA)",
+  "type": "module",
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:watch": "node --experimental-strip-types --test --watch tests/*.test.ts"
+  },
+  "keywords": [
+    "rag",
+    "langchain",
+    "langgraph",
+    "mentor",
+    "estudo"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "^5.6.0"
+  }
+}

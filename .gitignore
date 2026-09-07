@@ -1,0 +1,22 @@
+# dependências
+node_modules/
+
+# segredos e ambiente (NUNCA versionar) — use .env.example como modelo
+.env
+.env.*
+!.env.example
+
+# sobras do Python (o projeto migrou para TypeScript)
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# ferramentas / editor / SO
+.qodo/
+.vscode/
+.idea/
+.DS_Store
+
+# dados gerados (o índice de vetores é reconstruível — não versionar)
+data/vectorstore/
