@@ -1,0 +1,50 @@
+// ============================================================================
+//  PORTS (contratos / interfaces) do núcleo — as "tomadas" do sistema
+// ============================================================================
+//
+//  O QUE É UM "PORT"?
+//  É um CONTRATO: diz O QUE uma peça precisa fazer, sem dizer COMO. Ex.: o
+//  `EmbedderPort` diz "eu recebo textos e devolvo vetores" — mas NÃO diz se
+//  isso é feito pela OpenAI ou por um modelo local. Quem decide o "como" são
+//  os ADAPTERS (em src/adapters/), que "plugam" nestas tomadas.
+//
+//  POR QUE ISSO IMPORTA? (Arquitetura Hexagonal + o "D" do SOLID)
+//  O núcleo depende só destas interfaces (abstrações), nunca de uma tecnologia
+//  concreta. Resultado prático:
+//    • trocar o LLM ou o banco = trocar 1 adapter, sem tocar na lógica;
+//    • testar o núcleo com "dublês" (fakes) que implementam o mesmo contrato.
+//  Isso é a Inversão de Dependência — o "D" do SOLID.
+//
+//  POR QUE OS MÉTODOS RETORNAM Promise?
+//  Porque em Node, ler arquivo, gerar embedding e chamar o LLM são operações
+//  ASSÍNCRONAS (esperam disco/rede). `Promise<T>` = "eu te entrego um T, mas
+//  daqui a pouco". Quem chama usa `await` para esperar o resultado.
+// ============================================================================
+
+import type { Chunk, Document, RetrievedContext } from './models.ts';
+
+/** Lê um arquivo (PDF/MD/txt) e devolve um Document (texto + metadados). */
+export interface DocumentParserPort {
+  parse(path: string): Promise<Document>;
+}
+
+/** Quebra um Document em vários Chunks. (é puro/síncrono → fácil de testar) */
+export interface ChunkerPort {
+  chunk(document: Document): Chunk[];
+}
+
+/** Transforma textos em vetores (embeddings) — a "impressão digital" numérica do texto. */
+export interface EmbedderPort {
+  embed(texts: string[]): Promise<number[][]>; // 1 vetor de números por texto
+}
+
+/** Guarda os chunks vetorizados e busca os mais parecidos com a pergunta. */
+export interface VectorStorePort {
+  add(chunks: Chunk[], embeddings: number[][]): Promise<void>; // indexar (guardar)
+  search(queryEmbedding: number[], k: number): Promise<RetrievedContext>; // buscar top-k
+}
+
+/** Recebe um prompt (regras + pergunta) e devolve o texto gerado pelo modelo. */
+export interface LLMPort {
+  generate(systemPrompt: string, userPrompt: string): Promise<string>;
+}
