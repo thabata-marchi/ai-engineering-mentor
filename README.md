@@ -16,7 +16,8 @@ e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
 **Progresso (Fase 1 — RAG MVP):**
 - [x] **Etapa 1 — Fundação**: esqueleto hexagonal (`core` = models + ports) + testes.
 - [x] **Etapa 2 — Ingestão**: parser de texto/Markdown + chunking (sliding window). *(PDF fica pra Etapa 2b.)*
-- [ ] Etapa 3 — Embeddings + Vector Store.
+- [x] **Etapa 3a — Vector Store**: banco de vetores em memória + similaridade de cosseno.
+- [ ] Etapa 3b — Embedder real (escolher OpenAI × local).
 - [ ] Etapa 4 — Retrieval + resposta com fontes.
 
 ## Estrutura
