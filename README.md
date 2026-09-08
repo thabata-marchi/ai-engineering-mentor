@@ -18,13 +18,16 @@ e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
 - [x] **Etapa 2 — Ingestão**: parser de texto/Markdown + chunking (sliding window). *(PDF fica pra Etapa 2b.)*
 - [x] **Etapa 3a — Vector Store**: banco de vetores em memória + similaridade de cosseno.
 - [x] **Etapa 3b — Embedder**: embedder local (transformers.js, modelo multilíngue) + `FakeEmbedder` p/ testes.
-- [ ] Etapa 4 — Retrieval + resposta com fontes.
+- [x] **Etapa 4 — Resposta com fontes**: caso de uso `AnswerQuestion` (retrieval → prompt aterrado → geração) + `FakeLLM` p/ testes.
+- [ ] Etapa 4b — Adapter de LLM real (ex.: OpenRouter) para rodar ao vivo.
 
 ## Estrutura
 ```
-src/core/      → lógica pura (models.ts, ports.ts). NÃO depende de nada externo.
-src/adapters/  → implementações concretas (PDF, embeddings, vetores, LLM). [próximas etapas]
-tests/         → testes desde o dia 1 (node:test).
+src/core/         → lógica pura (models, ports, chunker, similarity). NÃO depende de nada externo.
+src/adapters/     → implementações concretas (parser, embeddings, vetores, LLM).
+src/application/  → casos de uso (AnswerQuestion) — orquestram as peças.
+examples/         → demo executável do RAG (ingestão → busca → resposta com fontes).
+tests/            → testes desde o dia 1 (node:test); tests/helpers = dublês (fakes).
 ```
 
 ## Rodar os testes

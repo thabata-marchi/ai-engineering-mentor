@@ -82,6 +82,10 @@ export class SlidingWindowChunker implements ChunkerPort {
         documentId: document.id,
         text: slice.join(' '),
         position, // ordem do chunk (0, 1, 2...)
+        // Carregamos a ORIGEM (nome do arquivo) junto do chunk. Assim, lá na
+        // frente, a resposta consegue CITAR a fonte exata de onde recuperou —
+        // é o requisito de rastreabilidade ("não invento") virando dado.
+        metadata: { source: document.source },
       });
       position += 1;
 

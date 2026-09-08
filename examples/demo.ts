@@ -26,10 +26,21 @@ import { join } from 'node:path';
 import { TextFileParser } from '../src/adapters/textFileParser.ts';
 import { SlidingWindowChunker } from '../src/core/chunker.ts';
 import { InMemoryVectorStore } from '../src/adapters/inMemoryVectorStore.ts';
+import { AnswerQuestion } from '../src/application/answerQuestion.ts';
+import type { LLMPort } from '../src/core/ports.ts';
 import { FakeEmbedder } from '../tests/helpers/fakeEmbedder.ts';
 // import { LocalEmbedder } from '../src/adapters/localEmbedder.ts'; // embedder real
 
 const DOCS_DIR = new URL('./docs/', import.meta.url).pathname;
+
+// LLM de mentira só para o demo: em vez de gerar texto, ele DEVOLVE o prompt que
+// recebeu — assim você VÊ o contexto que seria enviado a um LLM de verdade.
+// Na Etapa 4b, trocamos isto por um adapter real (ex.: OpenRouter).
+class EchoLLM implements LLMPort {
+  async generate(_systemPrompt: string, userPrompt: string): Promise<string> {
+    return `(resposta simulada — um LLM real responderia usando este contexto)\n${userPrompt}`;
+  }
+}
 
 async function main() {
   // Montamos as peças (cada uma respeita um port → poderíamos trocar qualquer
@@ -49,7 +60,9 @@ async function main() {
     console.log(`📄 indexado: ${file}  (${chunks.length} chunk(s))`);
   }
 
-  // ---------- 2. BUSCA ----------
+  // ---------- 2. PERGUNTA → RESPOSTA COM FONTES (o caso de uso completo) ----------
+  const useCase = new AnswerQuestion({ embedder, store, llm: new EchoLLM(), topK: 2 });
+
   const perguntas = [
     'como isolar o acesso ao banco de dados?',
     'por que dividir responsabilidades de uma classe?',
@@ -57,15 +70,13 @@ async function main() {
   ];
 
   for (const pergunta of perguntas) {
-    const [queryVector] = await embedder.embed([pergunta]);
-    const { chunks } = await store.search(queryVector, 2);
+    const answer = await useCase.execute(pergunta);
 
     console.log(`\n❓ ${pergunta}`);
-    chunks.forEach((sc, i) => {
-      const preview = sc.chunk.text.replace(/\s+/g, ' ').slice(0, 70);
-      console.log(
-        `   ${i + 1}. [score ${sc.score.toFixed(3)}] (${sc.chunk.documentId}) ${preview}...`,
-      );
+    // Aqui o texto é simulado (EchoLLM). O importante são as FONTES rastreáveis:
+    console.log('   Fontes citadas:');
+    answer.sources.forEach((s, i) => {
+      console.log(`     [${i + 1}] ${s.source} (chunk #${s.position})`);
     });
   }
 }
