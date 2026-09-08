@@ -53,7 +53,9 @@ async function main() {
   // Escolhemos as implementações REAIS (todas respeitam os ports).
   const parser = new FileParser(); // agora lê .md, .txt E .pdf
   const chunker = new SlidingWindowChunker({ chunkSizeWords: 200, overlapWords: 30 });
-  const embedder = new LocalEmbedder();
+  // Precisão do embedder: padrão 'q8' (rápido). Troque com EMBEDDER_DTYPE no .env.
+  const dtype = (process.env.EMBEDDER_DTYPE as 'q8' | 'fp16' | 'fp32') || 'q8';
+  const embedder = new LocalEmbedder(dtype);
   const store = new InMemoryVectorStore();
   const llm = new OpenRouterLLM({ apiKey, model: process.env.OPENROUTER_MODEL });
 

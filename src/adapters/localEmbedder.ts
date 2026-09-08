@@ -35,15 +35,26 @@ import { pipeline, type FeatureExtractionPipeline } from '@huggingface/transform
 
 const MODEL = 'Xenova/paraphrase-multilingual-MiniLM-L12-v2';
 
+// dtype = precisão numérica com que o modelo roda:
+//   'fp32' → precisão total, mais lenta e pesada (padrão do transformers.js).
+//   'q8'   → quantizado em 8 bits: bem mais RÁPIDO e leve, com perda mínima de
+//            qualidade na busca. É a nossa escolha padrão (velocidade no estudo).
+export type EmbedderDtype = 'q8' | 'fp16' | 'fp32';
+
 export class LocalEmbedder implements EmbedderPort {
   // Guardamos o "pipeline" carregado para NÃO recarregar o modelo a cada chamada.
   // Começa nulo e só é criado na 1ª vez que precisamos (lazy loading).
   private extractor: FeatureExtractionPipeline | null = null;
+  private readonly dtype: EmbedderDtype;
+
+  constructor(dtype: EmbedderDtype = 'q8') {
+    this.dtype = dtype;
+  }
 
   /** Carrega o modelo uma única vez (na 1ª vez, baixa e cacheia). */
   private async getExtractor(): Promise<FeatureExtractionPipeline> {
     // `??=` → só atribui se ainda for null/undefined. Ou seja: carrega 1x.
-    this.extractor ??= await pipeline('feature-extraction', MODEL);
+    this.extractor ??= await pipeline('feature-extraction', MODEL, { dtype: this.dtype });
     return this.extractor;
   }
 
