@@ -20,3 +20,6 @@ __pycache__/
 
 # dados gerados (o índice de vetores é reconstruível — não versionar)
 data/vectorstore/
+
+# materiais de estudo pessoais (PDFs/livros com direitos autorais) — NÃO versionar
+data/

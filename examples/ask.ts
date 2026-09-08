@@ -17,16 +17,23 @@
 // ============================================================================
 
 import { readdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 
-import { TextFileParser } from '../src/adapters/textFileParser.ts';
+import { FileParser } from '../src/adapters/fileParser.ts';
 import { SlidingWindowChunker } from '../src/core/chunker.ts';
 import { InMemoryVectorStore } from '../src/adapters/inMemoryVectorStore.ts';
 import { LocalEmbedder } from '../src/adapters/localEmbedder.ts';
 import { OpenRouterLLM } from '../src/adapters/openRouterLLM.ts';
 import { AnswerQuestion } from '../src/application/answerQuestion.ts';
 
-const DOCS_DIR = new URL('./docs/', import.meta.url).pathname;
+// Pasta da base de conhecimento. Padrão: examples/docs. Você pode apontar pra
+// SUA pasta de materiais definindo DOCS_DIR no .env (ex.: DOCS_DIR=./data).
+const DEFAULT_DIR = new URL('./docs/', import.meta.url).pathname;
+const DOCS_DIR = process.env.DOCS_DIR
+  ? isAbsolute(process.env.DOCS_DIR)
+    ? process.env.DOCS_DIR
+    : resolve(process.cwd(), process.env.DOCS_DIR)
+  : DEFAULT_DIR;
 
 async function main() {
   // A pergunta vem da linha de comando.
@@ -44,20 +51,26 @@ async function main() {
   }
 
   // Escolhemos as implementações REAIS (todas respeitam os ports).
-  const parser = new TextFileParser();
-  const chunker = new SlidingWindowChunker({ chunkSizeWords: 60, overlapWords: 10 });
+  const parser = new FileParser(); // agora lê .md, .txt E .pdf
+  const chunker = new SlidingWindowChunker({ chunkSizeWords: 200, overlapWords: 30 });
   const embedder = new LocalEmbedder();
   const store = new InMemoryVectorStore();
   const llm = new OpenRouterLLM({ apiKey, model: process.env.OPENROUTER_MODEL });
 
   // ---------- INGESTÃO ----------
-  console.log('⏳ Carregando embeddings e indexando a base (1ª vez baixa o modelo)...');
-  const files = (await readdir(DOCS_DIR)).filter((f) => f.endsWith('.md'));
+  const files = (await readdir(DOCS_DIR)).filter((f) => FileParser.suporta(f));
+  if (files.length === 0) {
+    console.error(`❌ Nenhum arquivo suportado (.pdf/.md/.txt) em: ${DOCS_DIR}`);
+    process.exit(1);
+  }
+  console.log(`⏳ Indexando ${files.length} arquivo(s) de ${DOCS_DIR}`);
+  console.log('   (a 1ª vez baixa o modelo de embeddings; PDF grande pode demorar)');
   for (const file of files) {
     const doc = await parser.parse(join(DOCS_DIR, file));
     const chunks = chunker.chunk(doc);
     const embeddings = await embedder.embed(chunks.map((c) => c.text));
     await store.add(chunks, embeddings);
+    console.log(`   ✔ ${file} → ${chunks.length} chunk(s)`);
   }
 
   // ---------- PERGUNTA → RESPOSTA COM FONTES ----------

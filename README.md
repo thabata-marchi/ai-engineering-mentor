@@ -15,7 +15,8 @@ e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
 
 **Progresso (Fase 1 — RAG MVP):**
 - [x] **Etapa 1 — Fundação**: esqueleto hexagonal (`core` = models + ports) + testes.
-- [x] **Etapa 2 — Ingestão**: parser de texto/Markdown + chunking (sliding window). *(PDF fica pra Etapa 2b.)*
+- [x] **Etapa 2 — Ingestão**: parser de texto/Markdown + chunking (sliding window).
+- [x] **Etapa 2b — PDF**: `PdfParser` (unpdf) + `FileParser` (despachante por extensão: .pdf/.md/.txt).
 - [x] **Etapa 3a — Vector Store**: banco de vetores em memória + similaridade de cosseno.
 - [x] **Etapa 3b — Embedder**: embedder local (transformers.js, modelo multilíngue) + `FakeEmbedder` p/ testes.
 - [x] **Etapa 4 — Resposta com fontes**: caso de uso `AnswerQuestion` (retrieval → prompt aterrado → geração) + `FakeLLM` p/ testes.
@@ -56,6 +57,15 @@ npm run ask -- "o que é o single responsibility principle?"
 > A 1ª execução baixa o modelo de embeddings (~alguns MB) e o cacheia.
 > Modelo do LLM: padrão gratuito; troque com `export OPENROUTER_MODEL="..."`
 > (modelos `:free` rotacionam — veja https://openrouter.ai/models).
+
+**Usar seus próprios materiais (PDF, .md, .txt):**
+Coloque os arquivos numa pasta `data/` (ignorada pelo Git) e aponte pra ela:
+```bash
+mkdir -p data && cp "meu-livro.pdf" data/
+echo 'DOCS_DIR=./data' >> .env
+npm run ask -- "sua pergunta sobre o material"
+```
+> PDFs grandes (centenas de páginas) geram muitos chunks e a 1ª indexação demora.
 
 ## Entendendo o `package.json`
 > ⚠️ O `package.json` é um arquivo **JSON**, e **JSON não aceita comentários** (`//`

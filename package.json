@@ -22,7 +22,8 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@huggingface/transformers": "^3.7.0"
+    "@huggingface/transformers": "^3.7.0",
+    "unpdf": "^1.8.1"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
