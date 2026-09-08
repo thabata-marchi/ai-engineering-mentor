@@ -19,6 +19,9 @@
   ],
   "author": "",
   "license": "MIT",
+  "dependencies": {
+    "@huggingface/transformers": "^3.7.0"
+  },
   "devDependencies": {
     "@types/node": "^22.20.1",
     "typescript": "^5.6.0"

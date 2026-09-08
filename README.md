@@ -17,7 +17,7 @@ e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
 - [x] **Etapa 1 — Fundação**: esqueleto hexagonal (`core` = models + ports) + testes.
 - [x] **Etapa 2 — Ingestão**: parser de texto/Markdown + chunking (sliding window). *(PDF fica pra Etapa 2b.)*
 - [x] **Etapa 3a — Vector Store**: banco de vetores em memória + similaridade de cosseno.
-- [ ] Etapa 3b — Embedder real (escolher OpenAI × local).
+- [x] **Etapa 3b — Embedder**: embedder local (transformers.js, modelo multilíngue) + `FakeEmbedder` p/ testes.
 - [ ] Etapa 4 — Retrieval + resposta com fontes.
 
 ## Estrutura
@@ -44,6 +44,10 @@ npm test        # roda os testes com o test runner nativo do Node
 - **`"scripts"`** → atalhos de terminal:
   - `npm test` → `node --experimental-strip-types --test tests/*.test.ts` (roda TS direto + test runner nativo).
   - `npm run test:watch` → re-roda os testes ao salvar.
+- **`"dependencies"`** → o que o produto **usa em runtime**:
+  - `@huggingface/transformers` → roda o modelo de embeddings **localmente** (Etapa 3b).
+    Na 1ª execução, baixa o modelo (~alguns MB) e o cacheia. Os **testes não usam**
+    isto (usam o `FakeEmbedder`), então não baixam nada.
 - **`"devDependencies"`** → só de **desenvolvimento** (não vão pro produto final):
   - `@types/node` → dá autocomplete/tipos do Node no editor.
   - `typescript` → deixa o editor checar os tipos.
