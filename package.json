@@ -8,7 +8,9 @@
   },
   "scripts": {
     "test": "node --experimental-strip-types --test tests/*.test.ts",
-    "test:watch": "node --experimental-strip-types --test --watch tests/*.test.ts"
+    "test:watch": "node --experimental-strip-types --test --watch tests/*.test.ts",
+    "demo": "node --experimental-strip-types examples/demo.ts",
+    "ask": "node --experimental-strip-types examples/ask.ts"
   },
   "keywords": [
     "rag",

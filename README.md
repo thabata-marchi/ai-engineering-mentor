@@ -19,7 +19,7 @@ e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
 - [x] **Etapa 3a — Vector Store**: banco de vetores em memória + similaridade de cosseno.
 - [x] **Etapa 3b — Embedder**: embedder local (transformers.js, modelo multilíngue) + `FakeEmbedder` p/ testes.
 - [x] **Etapa 4 — Resposta com fontes**: caso de uso `AnswerQuestion` (retrieval → prompt aterrado → geração) + `FakeLLM` p/ testes.
-- [ ] Etapa 4b — Adapter de LLM real (ex.: OpenRouter) para rodar ao vivo.
+- [x] **Etapa 4b — LLM real**: adapter `OpenRouterLLM` + CLI `npm run ask` (embedder local + LLM ao vivo).
 
 ## Estrutura
 ```
@@ -37,6 +37,23 @@ npm test        # roda os testes com o test runner nativo do Node
 ```
 > Requer **Node >= 22.6** (ideal Node 24). O TypeScript roda **nativo**, sem transpilar,
 > graças à flag `--experimental-strip-types` (já configurada no script `test`).
+
+## Ver funcionar
+
+**Demo sem configurar nada** (usa dublês — mostra o fluxo, não "pensa"):
+```bash
+npm run demo
+```
+
+**Rodar de verdade** (embedder local + LLM ao vivo via OpenRouter):
+```bash
+npm install                                  # baixa a transformers.js
+export OPENROUTER_API_KEY="sk-or-..."        # sua chave (criada em openrouter.ai/keys)
+npm run ask -- "o que é o single responsibility principle?"
+```
+> A 1ª execução baixa o modelo de embeddings (~alguns MB) e o cacheia.
+> Modelo do LLM: padrão gratuito; troque com `export OPENROUTER_MODEL="..."`
+> (modelos `:free` rotacionam — veja https://openrouter.ai/models).
 
 ## Entendendo o `package.json`
 > ⚠️ O `package.json` é um arquivo **JSON**, e **JSON não aceita comentários** (`//`
