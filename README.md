@@ -47,10 +47,12 @@ npm run demo
 
 **Rodar de verdade** (embedder local + LLM ao vivo via OpenRouter):
 ```bash
-npm install                                  # baixa a transformers.js
-export OPENROUTER_API_KEY="sk-or-..."        # sua chave (criada em openrouter.ai/keys)
+npm install                       # baixa a transformers.js
+cp .env.example .env              # crie seu .env (é ignorado pelo Git)
+# edite o .env e cole sua chave em OPENROUTER_API_KEY (crie em openrouter.ai/keys)
 npm run ask -- "o que é o single responsibility principle?"
 ```
+> O `npm run ask` carrega o `.env` automaticamente (`--env-file-if-exists`, nativo do Node).
 > A 1ª execução baixa o modelo de embeddings (~alguns MB) e o cacheia.
 > Modelo do LLM: padrão gratuito; troque com `export OPENROUTER_MODEL="..."`
 > (modelos `:free` rotacionam — veja https://openrouter.ai/models).
