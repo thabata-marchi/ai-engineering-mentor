@@ -33,9 +33,11 @@ export interface OpenRouterConfig {
   readonly baseUrl?: string; // permite trocar a URL nos testes
 }
 
-// Modelo gratuito padrão. ⚠️ Modelos ":free" ROTACIONAM — se este sumir, escolha
-// outro em https://openrouter.ai/models (filtre por "free") e passe em OPENROUTER_MODEL.
-const DEFAULT_MODEL = 'openai/gpt-oss-20b:free';
+// Modelo padrão: "openrouter/free" é o AUTO-ROUTER de gratuitos — o próprio
+// OpenRouter escolhe um modelo :free ativo na hora. Como os :free ROTACIONAM
+// (somem sem aviso), o auto-router evita que o app quebre. Para fixar um modelo
+// específico, passe OPENROUTER_MODEL (veja https://openrouter.ai/models, filtro "free").
+const DEFAULT_MODEL = 'openrouter/free';
 const DEFAULT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 export class OpenRouterLLM implements LLMPort {
