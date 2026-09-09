@@ -32,6 +32,12 @@ const CACHE_PATH = resolve(process.cwd(), 'data/vectorstore/index.json');
 
 const CHUNK_CONFIG = { chunkSizeWords: 200, overlapWords: 30 };
 
+// Quantos chunks embedar por vez (lote). Menor = mais estável na memória.
+const BATCH_SIZE = 32;
+
+// Limite opcional de chunks (MAX_CHUNKS no .env) — pra testar rápido só uma parte.
+const MAX_CHUNKS = process.env.MAX_CHUNKS ? Number(process.env.MAX_CHUNKS) : Infinity;
+
 // Pasta da base de conhecimento. Padrão: examples/docs. Você pode apontar pra
 // SUA pasta de materiais definindo DOCS_DIR no .env (ex.: DOCS_DIR=./data).
 const DEFAULT_DIR = new URL('./docs/', import.meta.url).pathname;
@@ -83,13 +89,28 @@ async function main() {
   } else {
     // CAMINHO LENTO (1ª vez ou algo mudou): indexa e salva pra próxima.
     console.log(`⏳ Indexando ${files.length} arquivo(s) de ${DOCS_DIR}`);
-    console.log('   (a 1ª vez baixa o modelo de embeddings; PDF grande pode demorar)');
+    console.log('   (a 1ª vez baixa o modelo de embeddings; depois vai mais rápido)');
     for (const file of files) {
       const doc = await parser.parse(join(DOCS_DIR, file));
-      const chunks = chunker.chunk(doc);
-      const embeddings = await embedder.embed(chunks.map((c) => c.text));
-      await store.add(chunks, embeddings);
-      console.log(`   ✔ ${file} → ${chunks.length} chunk(s)`);
+      let chunks = chunker.chunk(doc);
+
+      // Limite opcional (MAX_CHUNKS) — ótimo pra TESTAR rápido só uma parte.
+      if (chunks.length > MAX_CHUNKS) {
+        chunks = chunks.slice(0, MAX_CHUNKS);
+        console.log(`   ${file}: limitado a ${MAX_CHUNKS} chunks (MAX_CHUNKS)`);
+      }
+
+      // Embedamos em LOTES (batches) e mostramos progresso ao vivo — assim você
+      // vê andando em vez de parecer travado, e a memória fica sob controle.
+      console.log(`   ${file}: ${chunks.length} chunks — gerando embeddings...`);
+      for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+        const lote = chunks.slice(i, i + BATCH_SIZE);
+        const embeddings = await embedder.embed(lote.map((c) => c.text));
+        await store.add(lote, embeddings);
+        const feitos = Math.min(i + BATCH_SIZE, chunks.length);
+        process.stdout.write(`\r      ${feitos}/${chunks.length}`);
+      }
+      process.stdout.write('\n');
     }
     await saveIndex(CACHE_PATH, { signature, entries: store.snapshot() });
     console.log('💾 Índice salvo em cache. As próximas execuções serão instantâneas.');
@@ -112,7 +133,11 @@ async function main() {
  * chunking + a precisão. Se qualquer um mudar, a assinatura muda → reindexa.
  */
 async function buildSignature(files: string[], dtype: string): Promise<string> {
-  const parts: string[] = [`chunk=${JSON.stringify(CHUNK_CONFIG)}`, `dtype=${dtype}`];
+  const parts: string[] = [
+    `chunk=${JSON.stringify(CHUNK_CONFIG)}`,
+    `dtype=${dtype}`,
+    `max=${MAX_CHUNKS}`,
+  ];
   for (const file of files.sort()) {
     const info = await stat(join(DOCS_DIR, file));
     parts.push(`${file}:${info.size}:${Math.round(info.mtimeMs)}`);
