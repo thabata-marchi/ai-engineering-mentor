@@ -16,7 +16,7 @@
 //  (a 1ª execução baixa o modelo de embeddings; depois fica em cache)
 // ============================================================================
 
-import { readdir } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 
 import { FileParser } from '../src/adapters/fileParser.ts';
@@ -25,6 +25,12 @@ import { InMemoryVectorStore } from '../src/adapters/inMemoryVectorStore.ts';
 import { LocalEmbedder } from '../src/adapters/localEmbedder.ts';
 import { OpenRouterLLM } from '../src/adapters/openRouterLLM.ts';
 import { AnswerQuestion } from '../src/application/answerQuestion.ts';
+import { loadIndex, saveIndex } from '../src/adapters/indexCache.ts';
+
+// Onde o índice fica salvo (pasta ignorada pelo Git). Reindexa só quando muda.
+const CACHE_PATH = resolve(process.cwd(), 'data/vectorstore/index.json');
+
+const CHUNK_CONFIG = { chunkSizeWords: 200, overlapWords: 30 };
 
 // Pasta da base de conhecimento. Padrão: examples/docs. Você pode apontar pra
 // SUA pasta de materiais definindo DOCS_DIR no .env (ex.: DOCS_DIR=./data).
@@ -52,27 +58,41 @@ async function main() {
 
   // Escolhemos as implementações REAIS (todas respeitam os ports).
   const parser = new FileParser(); // agora lê .md, .txt E .pdf
-  const chunker = new SlidingWindowChunker({ chunkSizeWords: 200, overlapWords: 30 });
+  const chunker = new SlidingWindowChunker(CHUNK_CONFIG);
   // Precisão do embedder: padrão 'q8' (rápido). Troque com EMBEDDER_DTYPE no .env.
   const dtype = (process.env.EMBEDDER_DTYPE as 'q8' | 'fp16' | 'fp32') || 'q8';
   const embedder = new LocalEmbedder(dtype);
   const store = new InMemoryVectorStore();
   const llm = new OpenRouterLLM({ apiKey, model: process.env.OPENROUTER_MODEL });
 
-  // ---------- INGESTÃO ----------
+  // ---------- INGESTÃO (com cache em disco) ----------
   const files = (await readdir(DOCS_DIR)).filter((f) => FileParser.suporta(f));
   if (files.length === 0) {
     console.error(`❌ Nenhum arquivo suportado (.pdf/.md/.txt) em: ${DOCS_DIR}`);
     process.exit(1);
   }
-  console.log(`⏳ Indexando ${files.length} arquivo(s) de ${DOCS_DIR}`);
-  console.log('   (a 1ª vez baixa o modelo de embeddings; PDF grande pode demorar)');
-  for (const file of files) {
-    const doc = await parser.parse(join(DOCS_DIR, file));
-    const chunks = chunker.chunk(doc);
-    const embeddings = await embedder.embed(chunks.map((c) => c.text));
-    await store.add(chunks, embeddings);
-    console.log(`   ✔ ${file} → ${chunks.length} chunk(s)`);
+
+  // "Impressão digital" da entrada: se nada mudou, reusamos o índice salvo.
+  const signature = await buildSignature(files, dtype);
+  const cache = await loadIndex(CACHE_PATH);
+
+  if (cache && cache.signature === signature) {
+    // CAMINHO RÁPIDO: carrega o índice pronto do disco (sem reindexar!).
+    store.restore(cache.entries);
+    console.log(`⚡ Índice carregado do cache (${cache.entries.length} chunks). Sem reindexar.`);
+  } else {
+    // CAMINHO LENTO (1ª vez ou algo mudou): indexa e salva pra próxima.
+    console.log(`⏳ Indexando ${files.length} arquivo(s) de ${DOCS_DIR}`);
+    console.log('   (a 1ª vez baixa o modelo de embeddings; PDF grande pode demorar)');
+    for (const file of files) {
+      const doc = await parser.parse(join(DOCS_DIR, file));
+      const chunks = chunker.chunk(doc);
+      const embeddings = await embedder.embed(chunks.map((c) => c.text));
+      await store.add(chunks, embeddings);
+      console.log(`   ✔ ${file} → ${chunks.length} chunk(s)`);
+    }
+    await saveIndex(CACHE_PATH, { signature, entries: store.snapshot() });
+    console.log('💾 Índice salvo em cache. As próximas execuções serão instantâneas.');
   }
 
   // ---------- PERGUNTA → RESPOSTA COM FONTES ----------
@@ -87,7 +107,22 @@ async function main() {
   });
 }
 
-main().catch((err) => {
-  console.error('\n💥 Erro:', err.message);
-  process.exit(1);
-});
+/**
+ * Monta a assinatura da entrada: nome+tamanho+data de cada arquivo + a config de
+ * chunking + a precisão. Se qualquer um mudar, a assinatura muda → reindexa.
+ */
+async function buildSignature(files: string[], dtype: string): Promise<string> {
+  const parts: string[] = [`chunk=${JSON.stringify(CHUNK_CONFIG)}`, `dtype=${dtype}`];
+  for (const file of files.sort()) {
+    const info = await stat(join(DOCS_DIR, file));
+    parts.push(`${file}:${info.size}:${Math.round(info.mtimeMs)}`);
+  }
+  return parts.join('|');
+}
+
+main()
+  .then(() => process.exit(0)) // saída limpa (evita o crash nativo do onnxruntime)
+  .catch((err) => {
+    console.error('\n💥 Erro:', err.message);
+    process.exit(1);
+  });

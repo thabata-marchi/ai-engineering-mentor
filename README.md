@@ -21,6 +21,7 @@ e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
 - [x] **Etapa 3b — Embedder**: embedder local (transformers.js, modelo multilíngue) + `FakeEmbedder` p/ testes.
 - [x] **Etapa 4 — Resposta com fontes**: caso de uso `AnswerQuestion` (retrieval → prompt aterrado → geração) + `FakeLLM` p/ testes.
 - [x] **Etapa 4b — LLM real**: adapter `OpenRouterLLM` + CLI `npm run ask` (embedder local + LLM ao vivo).
+- [x] **Etapa 5 — Desempenho**: índice persistido em disco (embeda 1x) + embedder q8 + timeout/retry no LLM.
 
 ## Estrutura
 ```
@@ -66,6 +67,9 @@ echo 'DOCS_DIR=./data' >> .env
 npm run ask -- "sua pergunta sobre o material"
 ```
 > PDFs grandes (centenas de páginas) geram muitos chunks e a 1ª indexação demora.
+> Depois disso o índice fica salvo em `data/vectorstore/index.json` e as próximas
+> execuções são **instantâneas** — ele só reindexa se você trocar os arquivos ou a
+> configuração. Para forçar reindexação, apague esse arquivo.
 
 ## Entendendo o `package.json`
 > ⚠️ O `package.json` é um arquivo **JSON**, e **JSON não aceita comentários** (`//`

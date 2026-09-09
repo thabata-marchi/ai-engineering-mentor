@@ -24,7 +24,7 @@ import type { Chunk, RetrievedContext, ScoredChunk } from '../core/models.ts';
 import type { VectorStorePort } from '../core/ports.ts';
 
 /** Um item guardado: o chunk + o vetor que o representa. */
-interface StoredEntry {
+export interface StoredEntry {
   readonly chunk: Chunk;
   readonly embedding: number[];
 }
@@ -42,6 +42,19 @@ export class InMemoryVectorStore implements VectorStorePort {
     for (let i = 0; i < chunks.length; i++) {
       this.entries.push({ chunk: chunks[i], embedding: embeddings[i] });
     }
+  }
+
+  /**
+   * "Fotografa" o conteúdo atual (chunks + vetores) para salvar em disco.
+   * Assim conseguimos GUARDAR o índice e não recalcular tudo na próxima vez.
+   */
+  snapshot(): StoredEntry[] {
+    return this.entries.map((e) => ({ chunk: e.chunk, embedding: e.embedding }));
+  }
+
+  /** Recarrega um índice salvo (o inverso do snapshot). */
+  restore(entries: StoredEntry[]): void {
+    for (const entry of entries) this.entries.push(entry);
   }
 
   async search(queryEmbedding: number[], k: number): Promise<RetrievedContext> {
