@@ -69,7 +69,9 @@ async function main() {
   const dtype = (process.env.EMBEDDER_DTYPE as 'q8' | 'fp16' | 'fp32') || 'q8';
   const embedder = new LocalEmbedder(dtype);
   const store = new InMemoryVectorStore();
-  const timeoutMs = process.env.LLM_TIMEOUT_MS ? Number(process.env.LLM_TIMEOUT_MS) : 60_000;
+  // 120s de padrão: modelos de "raciocínio" (que pensam antes de responder) são
+  // lentos. Ajuste com LLM_TIMEOUT_MS no .env se precisar de mais/menos.
+  const timeoutMs = process.env.LLM_TIMEOUT_MS ? Number(process.env.LLM_TIMEOUT_MS) : 120_000;
   const llm = new OpenRouterLLM({ apiKey, model: process.env.OPENROUTER_MODEL, timeoutMs });
   console.log(`🤖 Modelo: ${process.env.OPENROUTER_MODEL ?? 'openrouter/free (padrão)'}`);
 
