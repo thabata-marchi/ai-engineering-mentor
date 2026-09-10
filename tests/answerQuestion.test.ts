@@ -71,6 +71,28 @@ test('o contexto recuperado é REALMENTE enviado ao LLM (grounding)', async () =
   assert.match(llm.lastSystemPrompt, /SOMENTE com base no CONTEXTO/i);
 });
 
+test('modo guiado (padrão) usa o prompt socrático', async () => {
+  const { embedder, store } = await setup();
+  const llm = new FakeLLM();
+
+  const useCase = new AnswerQuestion({ embedder, store, llm, topK: 1 }); // sem mode = guiado
+  await useCase.execute('o que é repository?');
+
+  // O prompt guiado NÃO entrega a resposta pronta — pede pra começar com pergunta.
+  assert.match(llm.lastSystemPrompt, /NÃO entregue a resposta pronta/i);
+});
+
+test('modo direto usa o prompt de resposta pronta', async () => {
+  const { embedder, store } = await setup();
+  const llm = new FakeLLM();
+
+  const useCase = new AnswerQuestion({ embedder, store, llm, topK: 1, mode: 'direto' });
+  await useCase.execute('o que é repository?');
+
+  // No modo direto não há a regra socrática de "não entregar pronto".
+  assert.doesNotMatch(llm.lastSystemPrompt, /NÃO entregue a resposta pronta/i);
+});
+
 test('sem contexto (store vazio) → sem fontes, mas ainda responde', async () => {
   const embedder = new FakeEmbedder();
   const store = new InMemoryVectorStore(); // vazio

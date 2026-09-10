@@ -124,7 +124,10 @@ async function main() {
   // topK = quantos trechos recuperar. Mais trechos = mais contexto pro LLM (bom
   // p/ bases grandes). Ajustável com TOP_K no .env. Padrão 5.
   const topK = process.env.TOP_K ? Number(process.env.TOP_K) : 5;
-  const useCase = new AnswerQuestion({ embedder, store, llm, topK });
+  // Postura do mentor: 'guiado' (socrático, padrão) ou 'direto'. Troque com MODE.
+  const mode = process.env.MODE === 'direto' ? 'direto' : 'guiado';
+  console.log(`🎓 Modo: ${mode}`);
+  const useCase = new AnswerQuestion({ embedder, store, llm, topK, mode });
   console.log(`\n❓ ${pergunta}\n`);
   const answer = await useCase.execute(pergunta);
 

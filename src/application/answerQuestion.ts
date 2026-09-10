@@ -33,10 +33,14 @@ export interface AnswerQuestionDeps {
   readonly store: VectorStorePort;
   readonly llm: LLMPort;
   readonly topK?: number; // quantos chunks recuperar (padrão: 4)
+  readonly mode?: MentorMode; // postura do mentor (padrão: 'guiado')
 }
 
-/** As regras que forçam o modelo a se ater ao contexto (o "não invento" em texto). */
-export const SYSTEM_PROMPT = [
+// O mentor tem dois "jeitos de responder" (modos). Ambos são aterrados no
+// contexto e citam as fontes — o que muda é a POSTURA pedagógica.
+
+/** Modo DIRETO: entrega a explicação pronta (bom quando você só quer a info). */
+export const SYSTEM_PROMPT_DIRETO = [
   'Você é um mentor de programação. Responda em português, de forma didática.',
   'Regras OBRIGATÓRIAS:',
   '1. Responda SOMENTE com base no CONTEXTO fornecido abaixo.',
@@ -44,16 +48,41 @@ export const SYSTEM_PROMPT = [
   '3. Ao usar uma informação, cite o número da fonte correspondente, ex.: [1].',
 ].join('\n');
 
+/**
+ * Modo GUIADO (socrático): em vez de entregar tudo, o mentor te conduz — faz uma
+ * pergunta, dá uma dica da fonte e te convida a tentar. Só revela se você pedir.
+ * É a postura que MAIS ensina: você constrói o entendimento em vez de só receber.
+ */
+export const SYSTEM_PROMPT_GUIADO = [
+  'Você é um mentor socrático de programação. Fale em português, com tom acolhedor e direto. Seja breve.',
+  'Regras OBRIGATÓRIAS:',
+  '1. Responda SOMENTE com base no CONTEXTO fornecido abaixo. Se a resposta não estiver nele, diga: "Não encontrei isso na base de conhecimento." Não invente.',
+  '2. NÃO entregue a resposta pronta de imediato. Comece com UMA pergunta que faça o aluno pensar sobre o problema.',
+  '3. Depois, dê UMA dica curta ancorada no contexto, citando a fonte usada (ex.: [1]) — aponte o caminho sem revelar tudo.',
+  '4. Convide o aluno a tentar: peça que ele diga o que acha ou tente responder.',
+  '5. EXCEÇÃO: se o aluno pedir explicitamente a resposta (ex.: "me dá a resposta", "explica logo", "estou travado"), aí sim explique de forma completa, ainda citando as fontes [n].',
+].join('\n');
+
+/** Os modos disponíveis do mentor. */
+export type MentorMode = 'guiado' | 'direto';
+
+const PROMPTS: Record<MentorMode, string> = {
+  guiado: SYSTEM_PROMPT_GUIADO,
+  direto: SYSTEM_PROMPT_DIRETO,
+};
+
 export class AnswerQuestion {
   // Declaramos os campos explicitamente (em vez de "parameter properties" tipo
   // `constructor(private deps...)`) porque o Node em modo strip-only NÃO aceita
   // aquele atalho — ele só remove tipos, não reescreve código.
   private readonly deps: AnswerQuestionDeps;
   private readonly topK: number;
+  private readonly systemPrompt: string;
 
   constructor(deps: AnswerQuestionDeps) {
     this.deps = deps;
     this.topK = deps.topK ?? 4;
+    this.systemPrompt = PROMPTS[deps.mode ?? 'guiado']; // padrão: socrático guiado
   }
 
   async execute(question: string): Promise<Answer> {
@@ -64,8 +93,8 @@ export class AnswerQuestion {
     // 2. AUGMENTATION — monta o prompt do usuário "aterrado" no contexto.
     const userPrompt = buildUserPrompt(question, context);
 
-    // 3. GENERATION — o LLM gera a resposta seguindo as regras do system prompt.
-    const text = await this.deps.llm.generate(SYSTEM_PROMPT, userPrompt);
+    // 3. GENERATION — o LLM gera a resposta seguindo as regras do modo escolhido.
+    const text = await this.deps.llm.generate(this.systemPrompt, userPrompt);
 
     // 4. FONTES — sempre devolvemos de onde veio o contexto (rastreabilidade).
     const sources = context.chunks.map(toSource);
