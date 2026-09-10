@@ -133,6 +133,9 @@ async function main() {
   answer.sources.forEach((s, i) => {
     console.log(`  [${i + 1}] ${s.source} (chunk #${s.position})`);
   });
+
+  // Encerra a sessão do modelo de forma ordenada (evita o crash nativo na saída).
+  await embedder.dispose();
 }
 
 /**

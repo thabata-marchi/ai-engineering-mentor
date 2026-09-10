@@ -71,4 +71,15 @@ export class LocalEmbedder implements EmbedderPort {
     // Para uma lista de N textos, o formato é [N][384].
     return output.tolist() as number[][];
   }
+
+  /**
+   * Libera a sessão do modelo (onnxruntime) de forma ordenada.
+   * Chamar isto antes de encerrar evita a corrida de threads nativas que causava
+   * o aviso "mutex lock failed" na saída do processo.
+   */
+  async dispose(): Promise<void> {
+    const ext = this.extractor as unknown as { dispose?: () => Promise<void> } | null;
+    await ext?.dispose?.();
+    this.extractor = null;
+  }
 }

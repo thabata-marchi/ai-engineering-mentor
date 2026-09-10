@@ -1,10 +1,20 @@
 # 🧠 AI Engineering Mentor (TypeScript)
 
+> 🇬🇧 **In short:** a study project — a RAG-based programming mentor built step by
+> step in TypeScript, with hexagonal architecture and tests from day one. Code
+> comments are in Portuguese on purpose (it's a learning log). The knowledge base
+> (books/PDFs) is **not** included for copyright reasons — you bring your own.
+
 Mentor de programação com IA (RAG + método socrático) — **laboratório de estudo**
 da pós em Engenharia de IA + fundamentos de Engenharia de Software.
 
 > Não é um chatbot: é um mentor que **conduz o raciocínio**, ancora as respostas
 > numa base de conhecimento própria (RAG) e **cita as fontes**.
+
+> ⚠️ **Projeto de estudo.** O objetivo é *aprender construindo* — por isso os
+> comentários do código são detalhados e em português (um diário de aprendizado).
+> A **base de conhecimento não vem incluída**: livros/PDFs têm direitos autorais,
+> então você coloca os seus na pasta `data/` (ignorada pelo Git).
 
 **Stack:** TypeScript + Node (24) — a mesma linguagem do curso. LangChain.js /
 LangGraph.js + OpenRouter entram nas próximas etapas.
