@@ -70,12 +70,13 @@ npm run ask -- "o que é o single responsibility principle?"
 
 **Usar MongoDB como vector store** (Etapa 7 — persiste os vetores num banco real):
 ```bash
-# 1. Sobe um Mongo local com Docker (fica ouvindo na porta 27017)
-docker run -d --name mentor-mongo -p 27017:27017 mongo:7
-
-# 2. Liga o modo Mongo no .env (ou na hora):
-VECTOR_STORE=mongo npm run ask -- "o que é extrair função?"
+open -a Docker            # 1. abre o Docker Desktop (espere a baleia estabilizar)
+docker compose up -d      # 2. sobe Mongo + Mongo Express (usa o docker-compose.yml)
+docker compose ps         # 3. confere: os dois devem estar "running"
+VECTOR_STORE=mongo npm run ask -- "o que é extrair função?"   # 4. roda com Mongo
 ```
+> Inspecione os dados no navegador em **http://localhost:8081** (Mongo Express).
+> Desligar: `docker compose down` (os dados ficam salvos no volume).
 > Precisa do **Docker** (ou um MongoDB instalado). O core não muda: o mesmo software
 > roda sobre o banco só trocando o adapter (`VECTOR_STORE=mongo`). ⚠️ O Mongo Community
 > local calcula a similaridade **na aplicação** (busca vetorial nativa é do Atlas).

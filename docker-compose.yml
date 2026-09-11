@@ -1,0 +1,35 @@
+# ============================================================================
+#  Infraestrutura local (igual ao curso do Erick): MongoDB + interface visual.
+# ============================================================================
+#  Sobe dois serviços:
+#    • mongo         → o banco de dados, ouvindo em localhost:27017
+#    • mongo-express → interface web pra inspecionar os dados (http://localhost:8081)
+#
+#  Comandos:
+#    docker compose up -d     # liga tudo em segundo plano
+#    docker compose ps        # ver o que está no ar
+#    docker compose down      # desliga (os dados ficam salvos no volume)
+# ============================================================================
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: mentor-mongo
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo-data:/data/db # persiste os dados entre reinícios
+
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mentor-mongo-ui
+    ports:
+      - '8081:8081'
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://mongo:27017
+      ME_CONFIG_BASICAUTH: 'false' # sem login (é só local, para estudo)
+    depends_on:
+      - mongo
+
+volumes:
+  mongo-data:
