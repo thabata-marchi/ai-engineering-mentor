@@ -34,6 +34,7 @@ e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
 - [x] **Etapa 5 — Desempenho**: índice persistido em disco (embeda 1x) + embedder q8 + timeout/retry no LLM.
 - [x] **Etapa 6 — Método socrático**: mentor guiado (pergunta + dica, revela se você pedir); modo `direto` opcional (`MODE`).
 - [x] **Etapa 7 — MongoDB**: `MongoVectorStore` (mesmo `VectorStorePort`) — persiste os vetores num banco de verdade (`VECTOR_STORE=mongo`).
+- [x] **Etapa 8 — Memória**: `MemoryPort` + adapters (memória/Mongo) e **modo conversa** (`npm run chat`) — o mentor lembra do diálogo.
 
 ## Estrutura
 ```
@@ -67,6 +68,13 @@ cp .env.example .env              # crie seu .env (é ignorado pelo Git)
 npm run ask -- "o que é o single responsibility principle?"
 ```
 > O `npm run ask` carrega o `.env` automaticamente (`--env-file-if-exists`, nativo do Node).
+
+**Conversar com memória** (Etapa 8 — o mentor lembra do diálogo):
+```bash
+npm run chat        # abre um loop; escreva, ele responde e LEMBRA. "sair" encerra.
+```
+> Com `VECTOR_STORE=mongo`, a conversa fica salva na coleção `conversations` do
+> Mongo (dá pra ver no Mongo Express). A sessão é `SESSION_ID` (padrão `default`).
 
 **Usar MongoDB como vector store** (Etapa 7 — persiste os vetores num banco real):
 ```bash

@@ -24,8 +24,8 @@
 //  `sources` reais dos chunks recuperados — para você poder conferir a origem.
 // ============================================================================
 
-import type { Answer, RetrievedContext, ScoredChunk, Source } from '../core/models.ts';
-import type { EmbedderPort, LLMPort, VectorStorePort } from '../core/ports.ts';
+import type { Answer, RetrievedContext, ScoredChunk, Source, Turn } from '../core/models.ts';
+import type { EmbedderPort, LLMPort, MemoryPort, VectorStorePort } from '../core/ports.ts';
 
 /** As dependências do caso de uso — todas são PORTS (interfaces), não implementações. */
 export interface AnswerQuestionDeps {
@@ -34,6 +34,8 @@ export interface AnswerQuestionDeps {
   readonly llm: LLMPort;
   readonly topK?: number; // quantos chunks recuperar (padrão: 4)
   readonly mode?: MentorMode; // postura do mentor (padrão: 'guiado')
+  readonly memory?: MemoryPort; // opcional: dá memória à conversa (Etapa 8)
+  readonly historyLimit?: number; // quantos turnos passados incluir (padrão: 6)
 }
 
 // O mentor tem dois "jeitos de responder" (modos). Ambos são aterrados no
@@ -77,27 +79,48 @@ export class AnswerQuestion {
   // aquele atalho — ele só remove tipos, não reescreve código.
   private readonly deps: AnswerQuestionDeps;
   private readonly topK: number;
+  private readonly historyLimit: number;
   private readonly systemPrompt: string;
 
   constructor(deps: AnswerQuestionDeps) {
     this.deps = deps;
     this.topK = deps.topK ?? 4;
+    this.historyLimit = deps.historyLimit ?? 6;
     this.systemPrompt = PROMPTS[deps.mode ?? 'guiado']; // padrão: socrático guiado
   }
 
-  async execute(question: string): Promise<Answer> {
+  /**
+   * Responde a `question`. Se `sessionId` for informado E houver memória, o
+   * mentor LEMBRA da conversa: injeta o histórico no prompt e grava os turnos.
+   * Sem isso, funciona como antes (uma pergunta isolada).
+   */
+  async execute(question: string, sessionId?: string): Promise<Answer> {
+    const usarMemoria = Boolean(this.deps.memory && sessionId);
+
+    // 0. MEMÓRIA — recupera os últimos turnos da conversa (se houver).
+    const history: Turn[] = usarMemoria
+      ? await this.deps.memory!.history(sessionId!, this.historyLimit)
+      : [];
+
     // 1. RETRIEVAL — vetoriza a pergunta e busca os chunks mais próximos.
     const [queryVector] = await this.deps.embedder.embed([question]);
     const context = await this.deps.store.search(queryVector, this.topK);
 
-    // 2. AUGMENTATION — monta o prompt do usuário "aterrado" no contexto.
-    const userPrompt = buildUserPrompt(question, context);
+    // 2. AUGMENTATION — monta o prompt com o HISTÓRICO + o contexto recuperado.
+    const userPrompt = buildUserPrompt(question, context, history);
 
     // 3. GENERATION — o LLM gera a resposta seguindo as regras do modo escolhido.
     const text = await this.deps.llm.generate(this.systemPrompt, userPrompt);
 
     // 4. FONTES — sempre devolvemos de onde veio o contexto (rastreabilidade).
     const sources = context.chunks.map(toSource);
+
+    // 5. MEMÓRIA — grava o turno do aluno e o do mentor, pra lembrar depois.
+    if (usarMemoria) {
+      const agora = new Date().toISOString();
+      await this.deps.memory!.append(sessionId!, { role: 'aluno', text: question, at: agora });
+      await this.deps.memory!.append(sessionId!, { role: 'mentor', text, at: agora });
+    }
 
     return { text, sources };
   }
@@ -108,19 +131,31 @@ export class AnswerQuestion {
  * Numeramos os trechos ([1], [2]...) para o modelo conseguir citar a fonte.
  * É uma função PURA (mesma entrada → mesma saída) → fácil de testar.
  */
-export function buildUserPrompt(question: string, context: RetrievedContext): string {
-  if (context.chunks.length === 0) {
-    return `CONTEXTO: (nenhum trecho encontrado)\n\nPERGUNTA: ${question}`;
+export function buildUserPrompt(
+  question: string,
+  context: RetrievedContext,
+  history: Turn[] = [],
+): string {
+  const partes: string[] = [];
+
+  // HISTÓRICO (se houver) — dá continuidade ao diálogo.
+  if (history.length > 0) {
+    const conversa = history.map((t) => `${t.role.toUpperCase()}: ${t.text}`).join('\n');
+    partes.push(`HISTÓRICO DA CONVERSA:\n${conversa}`);
   }
 
-  const trechos = context.chunks
-    .map((sc, i) => {
-      const origem = sourceName(sc);
-      return `[${i + 1}] (fonte: ${origem})\n${sc.chunk.text}`;
-    })
-    .join('\n\n');
+  // CONTEXTO recuperado da base (numerado para o modelo citar as fontes).
+  if (context.chunks.length === 0) {
+    partes.push('CONTEXTO: (nenhum trecho encontrado)');
+  } else {
+    const trechos = context.chunks
+      .map((sc, i) => `[${i + 1}] (fonte: ${sourceName(sc)})\n${sc.chunk.text}`)
+      .join('\n\n');
+    partes.push(`CONTEXTO:\n${trechos}`);
+  }
 
-  return `CONTEXTO:\n${trechos}\n\nPERGUNTA: ${question}`;
+  partes.push(`PERGUNTA: ${question}`);
+  return partes.join('\n\n');
 }
 
 /** Converte um ScoredChunk na Source citável (com o nome do arquivo de origem). */

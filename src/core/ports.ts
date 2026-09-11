@@ -21,7 +21,7 @@
 //  daqui a pouco". Quem chama usa `await` para esperar o resultado.
 // ============================================================================
 
-import type { Chunk, Document, RetrievedContext } from './models.ts';
+import type { Chunk, Document, RetrievedContext, Turn } from './models.ts';
 
 /** Lê um arquivo (PDF/MD/txt) e devolve um Document (texto + metadados). */
 export interface DocumentParserPort {
@@ -47,4 +47,14 @@ export interface VectorStorePort {
 /** Recebe um prompt (regras + pergunta) e devolve o texto gerado pelo modelo. */
 export interface LLMPort {
   generate(systemPrompt: string, userPrompt: string): Promise<string>;
+}
+
+/**
+ * Guarda e recupera o histórico da conversa (a MEMÓRIA do mentor). É graças a
+ * ela que o diálogo tem continuidade: o mentor lembra do que já foi dito.
+ * Como é um PORT, dá pra guardar em memória (testes) ou no Mongo (persistente).
+ */
+export interface MemoryPort {
+  append(sessionId: string, turn: Turn): Promise<void>; // adiciona um turno
+  history(sessionId: string, limit?: number): Promise<Turn[]>; // últimos turnos (em ordem)
 }

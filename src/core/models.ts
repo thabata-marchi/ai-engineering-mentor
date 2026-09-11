@@ -71,3 +71,13 @@ export interface Answer {
   readonly text: string; // o texto da resposta
   readonly sources: Source[]; // de onde ela saiu (rastreabilidade)
 }
+
+/**
+ * Um "turno" da conversa: quem falou (aluno ou mentor) e o quê. A memória do
+ * mentor é uma lista de turnos — é isso que permite o diálogo ter continuidade.
+ */
+export interface Turn {
+  readonly role: 'aluno' | 'mentor';
+  readonly text: string;
+  readonly at: string; // data/hora em ISO (ex.: "2026-09-11T14:00:00.000Z")
+}
