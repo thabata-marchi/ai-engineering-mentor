@@ -19,9 +19,9 @@
 //  chunks; ruim para milhões. É o trade-off certo para o MVP.
 // ============================================================================
 
-import { cosineSimilarity } from '../core/similarity.ts';
-import type { Chunk, RetrievedContext, ScoredChunk } from '../core/models.ts';
+import type { Chunk, RetrievedContext } from '../core/models.ts';
 import type { VectorStorePort } from '../core/ports.ts';
+import { rankByCosine } from '../core/ranking.ts';
 
 /** Um item guardado: o chunk + o vetor que o representa. */
 export interface StoredEntry {
@@ -58,16 +58,8 @@ export class InMemoryVectorStore implements VectorStorePort {
   }
 
   async search(queryEmbedding: number[], k: number): Promise<RetrievedContext> {
-    // 1. Pontua CADA chunk pela similaridade com a pergunta.
-    const scored: ScoredChunk[] = this.entries.map((entry) => ({
-      chunk: entry.chunk,
-      score: cosineSimilarity(queryEmbedding, entry.embedding),
-    }));
-
-    // 2. Ordena do mais parecido para o menos parecido.
-    scored.sort((a, b) => b.score - a.score);
-
-    // 3. Devolve só os "top-k" (os k melhores).
-    return { chunks: scored.slice(0, k) };
+    // A lógica de pontuar+ordenar+cortar vive no core (rankByCosine), então
+    // este store só entrega suas entries. O MongoVectorStore fará o mesmo.
+    return rankByCosine(this.entries, queryEmbedding, k);
   }
 }

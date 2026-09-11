@@ -33,6 +33,7 @@ e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
 - [x] **Etapa 4b — LLM real**: adapter `OpenRouterLLM` + CLI `npm run ask` (embedder local + LLM ao vivo).
 - [x] **Etapa 5 — Desempenho**: índice persistido em disco (embeda 1x) + embedder q8 + timeout/retry no LLM.
 - [x] **Etapa 6 — Método socrático**: mentor guiado (pergunta + dica, revela se você pedir); modo `direto` opcional (`MODE`).
+- [x] **Etapa 7 — MongoDB**: `MongoVectorStore` (mesmo `VectorStorePort`) — persiste os vetores num banco de verdade (`VECTOR_STORE=mongo`).
 
 ## Estrutura
 ```
@@ -66,6 +67,20 @@ cp .env.example .env              # crie seu .env (é ignorado pelo Git)
 npm run ask -- "o que é o single responsibility principle?"
 ```
 > O `npm run ask` carrega o `.env` automaticamente (`--env-file-if-exists`, nativo do Node).
+
+**Usar MongoDB como vector store** (Etapa 7 — persiste os vetores num banco real):
+```bash
+# 1. Sobe um Mongo local com Docker (fica ouvindo na porta 27017)
+docker run -d --name mentor-mongo -p 27017:27017 mongo:7
+
+# 2. Liga o modo Mongo no .env (ou na hora):
+VECTOR_STORE=mongo npm run ask -- "o que é extrair função?"
+```
+> Precisa do **Docker** (ou um MongoDB instalado). O core não muda: o mesmo software
+> roda sobre o banco só trocando o adapter (`VECTOR_STORE=mongo`). ⚠️ O Mongo Community
+> local calcula a similaridade **na aplicação** (busca vetorial nativa é do Atlas).
+> Teste de integração (opcional, precisa do Mongo no ar):
+> `MONGO_TEST_URL="mongodb://localhost:27017" npm test`
 > A 1ª execução baixa o modelo de embeddings (~alguns MB) e o cacheia.
 > Modelo do LLM: padrão gratuito; troque com `export OPENROUTER_MODEL="..."`
 > (modelos `:free` rotacionam — veja https://openrouter.ai/models).

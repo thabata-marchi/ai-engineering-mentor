@@ -54,7 +54,14 @@ export class LocalEmbedder implements EmbedderPort {
   /** Carrega o modelo uma única vez (na 1ª vez, baixa e cacheia). */
   private async getExtractor(): Promise<FeatureExtractionPipeline> {
     // `??=` → só atribui se ainda for null/undefined. Ou seja: carrega 1x.
-    this.extractor ??= await pipeline('feature-extraction', MODEL, { dtype: this.dtype });
+    // As sobrecargas de `pipeline` geram uma "union complexa demais" para o TS.
+    // Encapsulamos numa assinatura simples (só tipagem; em runtime o TS some).
+    const criarPipeline = pipeline as unknown as (
+      task: 'feature-extraction',
+      model: string,
+      options: { dtype: EmbedderDtype },
+    ) => Promise<FeatureExtractionPipeline>;
+    this.extractor ??= await criarPipeline('feature-extraction', MODEL, { dtype: this.dtype });
     return this.extractor;
   }
 
