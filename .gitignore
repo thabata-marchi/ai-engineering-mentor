@@ -14,7 +14,8 @@ __pycache__/
 
 # ferramentas / editor / SO
 .qodo/
-.vscode/
+.vscode/*
+!.vscode/mcp.json
 .idea/
 .DS_Store
 

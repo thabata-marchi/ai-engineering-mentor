@@ -11,7 +11,8 @@
     "test:watch": "node --experimental-strip-types --test --watch tests/*.test.ts",
     "demo": "node --experimental-strip-types examples/demo.ts",
     "ask": "node --dns-result-order=ipv4first --env-file-if-exists=.env --experimental-strip-types examples/ask.ts",
-    "chat": "node --dns-result-order=ipv4first --env-file-if-exists=.env --experimental-strip-types examples/chat.ts"
+    "chat": "node --dns-result-order=ipv4first --env-file-if-exists=.env --experimental-strip-types examples/chat.ts",
+    "mcp": "node --dns-result-order=ipv4first --env-file-if-exists=.env --experimental-strip-types examples/mcp.ts"
   },
   "keywords": [
     "rag",
@@ -24,8 +25,10 @@
   "license": "MIT",
   "dependencies": {
     "@huggingface/transformers": "^3.7.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "mongodb": "^7.6.0",
-    "unpdf": "^1.8.1"
+    "unpdf": "^1.8.1",
+    "zod": "^4.6.3"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

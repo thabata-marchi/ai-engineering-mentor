@@ -55,7 +55,7 @@ export async function setupMentor(apiKey: string): Promise<Mentor> {
   const embedder = new LocalEmbedder(dtype);
   const timeoutMs = process.env.LLM_TIMEOUT_MS ? Number(process.env.LLM_TIMEOUT_MS) : 120_000;
   const llm = new OpenRouterLLM({ apiKey, model: process.env.OPENROUTER_MODEL, timeoutMs });
-  console.log(`🤖 Modelo: ${process.env.OPENROUTER_MODEL ?? 'openrouter/free (padrão)'}`);
+  console.error(`🤖 Modelo: ${process.env.OPENROUTER_MODEL ?? 'openrouter/free (padrão)'}`);
 
   const files = (await readdir(DOCS_DIR)).filter((f) => FileParser.suporta(f));
   if (files.length === 0) {
@@ -122,23 +122,23 @@ async function buildSignature(files: string[], dtype: string): Promise<string> {
 }
 
 async function indexDocs(store: VectorStorePort, deps: IngestDeps): Promise<void> {
-  console.log(`⏳ Indexando ${deps.files.length} arquivo(s) de ${DOCS_DIR}`);
-  console.log('   (a 1ª vez baixa o modelo de embeddings; depois vai mais rápido)');
+  console.error(`⏳ Indexando ${deps.files.length} arquivo(s) de ${DOCS_DIR}`);
+  console.error('   (a 1ª vez baixa o modelo de embeddings; depois vai mais rápido)');
   for (const file of deps.files) {
     const doc = await deps.parser.parse(join(DOCS_DIR, file));
     let chunks = deps.chunker.chunk(doc);
     if (chunks.length > MAX_CHUNKS) {
       chunks = chunks.slice(0, MAX_CHUNKS);
-      console.log(`   ${file}: limitado a ${MAX_CHUNKS} chunks (MAX_CHUNKS)`);
+      console.error(`   ${file}: limitado a ${MAX_CHUNKS} chunks (MAX_CHUNKS)`);
     }
-    console.log(`   ${file}: ${chunks.length} chunks — gerando embeddings...`);
+    console.error(`   ${file}: ${chunks.length} chunks — gerando embeddings...`);
     for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
       const lote = chunks.slice(i, i + BATCH_SIZE);
       const embeddings = await deps.embedder.embed(lote.map((c) => c.text));
       await store.add(lote, embeddings);
-      process.stdout.write(`\r      ${Math.min(i + BATCH_SIZE, chunks.length)}/${chunks.length}`);
+      process.stderr.write(`\r      ${Math.min(i + BATCH_SIZE, chunks.length)}/${chunks.length}`);
     }
-    process.stdout.write('\n');
+    process.stderr.write('\n');
   }
 }
 
@@ -150,12 +150,12 @@ async function prepareMemory(
   const cache = await loadIndex(CACHE_PATH);
   if (cache && cache.signature === signature) {
     store.restore(cache.entries);
-    console.log(`⚡ Índice carregado do cache (${cache.entries.length} chunks). Sem reindexar.`);
+    console.error(`⚡ Índice carregado do cache (${cache.entries.length} chunks). Sem reindexar.`);
     return;
   }
   await indexDocs(store, deps);
   await saveIndex(CACHE_PATH, { signature, entries: store.snapshot() });
-  console.log('💾 Índice salvo em cache. As próximas execuções serão instantâneas.');
+  console.error('💾 Índice salvo em cache. As próximas execuções serão instantâneas.');
 }
 
 async function prepareMongo(
@@ -165,11 +165,11 @@ async function prepareMongo(
 ): Promise<void> {
   const saved = await store.readSignature();
   if (saved === signature && (await store.count()) > 0) {
-    console.log(`⚡ Índice já está no MongoDB (${await store.count()} chunks). Sem reindexar.`);
+    console.error(`⚡ Índice já está no MongoDB (${await store.count()} chunks). Sem reindexar.`);
     return;
   }
   await store.clear();
   await indexDocs(store, deps);
   await store.writeSignature(signature);
-  console.log('💾 Índice gravado no MongoDB. As próximas execuções serão instantâneas.');
+  console.error('💾 Índice gravado no MongoDB. As próximas execuções serão instantâneas.');
 }
