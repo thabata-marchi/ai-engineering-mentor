@@ -67,3 +67,37 @@ test('erro HTTP vira mensagem clara', async () => {
 test('chave vazia falha cedo, com instrução', () => {
   assert.throws(() => new OpenRouterLLM({ apiKey: '' }), /OPENROUTER_API_KEY/);
 });
+
+test('modelo fora do gratuito (404) → cai automaticamente no auto-router', async () => {
+  // fetch dublê que responde conforme o modelo do body: o modelo fixado dá 404
+  // ("unavailable for free"); o auto-router "openrouter/free" responde 200.
+  const modelosChamados: string[] = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (_url: string, init: RequestInit) => {
+    const model = JSON.parse(init.body as string).model as string;
+    modelosChamados.push(model);
+    if (model !== 'openrouter/free') {
+      return {
+        ok: false,
+        status: 404,
+        text: async () => 'This model is unavailable for free.',
+        json: async () => ({}),
+      } as Response;
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: 'resposta do fallback' } }] }),
+      text: async () => '',
+    } as Response;
+  }) as typeof fetch;
+
+  try {
+    const llm = new OpenRouterLLM({ apiKey: 'x', model: 'algum/modelo-morto:free' });
+    const texto = await llm.generate('s', 'u');
+    assert.equal(texto, 'resposta do fallback'); // conseguiu responder mesmo assim
+    assert.deepEqual(modelosChamados, ['algum/modelo-morto:free', 'openrouter/free']);
+  } finally {
+    globalThis.fetch = original;
+  }
+});

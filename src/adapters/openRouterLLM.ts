@@ -40,6 +40,9 @@ export interface OpenRouterConfig {
 // (somem sem aviso), o auto-router evita que o app quebre. Para fixar um modelo
 // específico, passe OPENROUTER_MODEL (veja https://openrouter.ai/models, filtro "free").
 const DEFAULT_MODEL = 'openrouter/free';
+// Rede de segurança: se o modelo escolhido rotacionar para pago (404), caímos
+// automaticamente para o auto-router de gratuitos.
+const FALLBACK_MODEL = 'openrouter/free';
 const DEFAULT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 export class OpenRouterLLM implements LLMPort {
@@ -63,13 +66,38 @@ export class OpenRouterLLM implements LLMPort {
   }
 
   async generate(systemPrompt: string, userPrompt: string): Promise<string> {
+    try {
+      return await this.attempt(systemPrompt, userPrompt, this.model);
+    } catch (err) {
+      // AUTO-CURA: se o modelo escolhido saiu do gratuito (404), o app não
+      // quebra — ele cai automaticamente para o auto-router de gratuitos, que
+      // sempre tem algum modelo ativo. Isso evita ter que editar o .env toda vez
+      // que um modelo ":free" rotaciona para pago.
+      const rotacionou =
+        err instanceof HttpError && err.status === 404 && this.model !== FALLBACK_MODEL;
+      if (rotacionou) {
+        console.warn(
+          `⚠️  Modelo "${this.model}" indisponível no gratuito. Usando "${FALLBACK_MODEL}"...`,
+        );
+        return await this.attempt(systemPrompt, userPrompt, FALLBACK_MODEL);
+      }
+      throw err;
+    }
+  }
+
+  /** Tenta gerar com um modelo específico, com retry de rede e timeout. */
+  private async attempt(
+    systemPrompt: string,
+    userPrompt: string,
+    model: string,
+  ): Promise<string> {
     // Tenta algumas vezes: falhas de REDE (o "fetch failed") costumam ser
-    // passageiras. Erros de HTTP (4xx) NÃO são retentados — não adianta insistir
-    // numa chave inválida. Backoff simples: espera um pouco mais a cada tentativa.
+    // passageiras. Erros de HTTP (4xx) NÃO são retentados — não adianta insistir.
+    // Backoff simples: espera um pouco mais a cada tentativa.
     let ultimoErro: unknown;
     for (let tentativa = 0; tentativa <= this.retries; tentativa++) {
       try {
-        return await this.callOnce(systemPrompt, userPrompt);
+        return await this.callOnce(systemPrompt, userPrompt, model);
       } catch (err) {
         if (err instanceof HttpError) throw err; // erro do servidor → não retenta
         ultimoErro = err;
@@ -85,7 +113,11 @@ export class OpenRouterLLM implements LLMPort {
   }
 
   /** Uma tentativa: monta a requisição, com timeout, e lê a resposta. */
-  private async callOnce(systemPrompt: string, userPrompt: string): Promise<string> {
+  private async callOnce(
+    systemPrompt: string,
+    userPrompt: string,
+    model: string,
+  ): Promise<string> {
     // AbortController corta a requisição se ela passar do tempo limite.
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -98,7 +130,7 @@ export class OpenRouterLLM implements LLMPort {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: this.model,
+          model,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
@@ -129,9 +161,13 @@ export class OpenRouterLLM implements LLMPort {
 
 /** Erro vindo do servidor (status HTTP). Não deve ser retentado. */
 class HttpError extends Error {
+  readonly status: number;
+  readonly detalhe: string;
   constructor(status: number, detalhe: string) {
     super(`OpenRouter respondeu ${status}: ${detalhe}`);
     this.name = 'HttpError';
+    this.status = status;
+    this.detalhe = detalhe;
   }
 }
 
