@@ -83,8 +83,12 @@ npm run mcp                         # sobe o servidor MCP (STDIO). Espera um cli
 ```
 No **VSCode**: abra esta pasta como projeto — o `.vscode/mcp.json` já registra o
 servidor `ai-engineering-mentor`. O editor mostra a tool `perguntar`, o resource
-`mentor://base` e o prompt `estudo-guiado`. Para inspecionar manualmente, use o
-MCP Inspector: `npx @modelcontextprotocol/inspector npm run mcp`.
+`mentor://base` e o prompt `estudo-guiado`. Para inspecionar manualmente, use o MCP Inspector apontando
+para o **node direto** (não use `npm run` aqui — o banner do npm suja o STDIO):
+```bash
+npx @modelcontextprotocol/inspector node --dns-result-order=ipv4first \
+  --env-file-if-exists=.env --experimental-strip-types examples/mcp.ts
+```
 
 **Usar MongoDB como vector store** (Etapa 7 — persiste os vetores num banco real):
 ```bash
