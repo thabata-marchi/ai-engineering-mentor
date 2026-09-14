@@ -21,7 +21,16 @@
 //  daqui a pouco". Quem chama usa `await` para esperar o resultado.
 // ============================================================================
 
-import type { Chunk, Document, ProfileSummary, RetrievedContext, Turn } from './models.ts';
+import type {
+  ChatMessage,
+  ChatResult,
+  Chunk,
+  Document,
+  ProfileSummary,
+  RetrievedContext,
+  ToolSpec,
+  Turn,
+} from './models.ts';
 
 /** Lê um arquivo (PDF/MD/txt) e devolve um Document (texto + metadados). */
 export interface DocumentParserPort {
@@ -69,4 +78,28 @@ export interface MemoryPort {
 export interface ProfilePort {
   record(studentId: string, question: string, sources: string[]): Promise<void>; // registra 1 estudo
   summary(studentId: string): Promise<ProfileSummary>; // devolve o resumo agregado
+}
+
+/**
+ * LLM com suporte a TOOL-CALLING (Etapa 11 — o agente). É um contrato SEPARADO
+ * do LLMPort de propósito: o RAG só precisa de `generate(system, user)`, então
+ * não faz sentido obrigá-lo a saber de tools (isso é o "I" do SOLID — segregação
+ * de interfaces). Quem precisar de autonomia usa este port mais rico.
+ *
+ * Recebe o diálogo (mensagens) + a lista de tools disponíveis; devolve OU um
+ * texto final OU pedidos para chamar tools (o modelo decide).
+ */
+export interface ToolCallingLLMPort {
+  chat(messages: ChatMessage[], tools: ToolSpec[]): Promise<ChatResult>;
+}
+
+/**
+ * A fonte de FERRAMENTAS do agente. No nosso caso, o adapter concreto embrulha
+ * um CLIENTE MCP: o agente "consome o MCP" que construímos na Etapa 9 — lista as
+ * tools (`perguntar`, `meu_progresso`) e as executa pelo protocolo. Como é um
+ * PORT, o agente não sabe que por baixo é MCP → dá pra testar com um dublê.
+ */
+export interface AgentToolsPort {
+  listTools(): Promise<ToolSpec[]>; // quais tools existem (para o modelo escolher)
+  callTool(name: string, argumentsJson: string): Promise<string>; // executa e devolve o texto
 }

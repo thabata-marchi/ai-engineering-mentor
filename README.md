@@ -37,13 +37,15 @@ e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
 - [x] **Etapa 8 — Memória**: `MemoryPort` + adapters (memória/Mongo) e **modo conversa** (`npm run chat`) — o mentor lembra do diálogo.
 - [x] **Etapa 9 — Servidor MCP**: o mentor exposto como MCP (tool `perguntar`, resource + prompt) — consumível no VSCode/agentes (`npm run mcp`).
 - [x] **Etapa 10 — Perfil do aluno**: `ProfilePort` + adapters (memória/Mongo, coleção `study_log`) registram o que você estuda; 2ª tool MCP `meu_progresso` e comando `/progresso` no chat.
+- [x] **Etapa 11 — Agente**: agente autônomo (loop ReAct) que **consome o MCP** — `ToolCallingLLMPort` (OpenRouter) + `AgentToolsPort` (cliente MCP); dado um objetivo, ele decide quais tools chamar (`npm run agent`).
 
 ## Estrutura
 ```
 src/core/         → lógica pura (models, ports, chunker, similarity). NÃO depende de nada externo.
-src/adapters/     → implementações concretas (parser, embeddings, vetores, LLM).
-src/application/  → casos de uso (AnswerQuestion) — orquestram as peças.
-examples/         → demo executável do RAG (ingestão → busca → resposta com fontes).
+src/adapters/     → implementações concretas (parser, embeddings, vetores, LLM, MCP tools).
+src/application/  → casos de uso (AnswerQuestion, MentorAgent) — orquestram as peças.
+src/mcp/          → o mentor exposto como servidor MCP (tools/resource/prompt).
+examples/         → executáveis: demo, ask, chat, mcp, agent.
 tests/            → testes desde o dia 1 (node:test); tests/helpers = dublês (fakes).
 ```
 
@@ -94,6 +96,19 @@ para o **node direto** (não use `npm run` aqui — o banner do npm suja o STDIO
 npx @modelcontextprotocol/inspector node --dns-result-order=ipv4first \
   --env-file-if-exists=.env --experimental-strip-types examples/mcp.ts
 ```
+
+**Usar como agente autônomo** (Etapa 11 — ele decide quais tools chamar):
+```bash
+npm run agent -- "me ajude a entender o Extrair Função"
+```
+> O agente conecta um cliente MCP ao próprio servidor do mentor (em memória) e
+> usa as tools `perguntar`/`meu_progresso` num loop ReAct até responder — mostrando
+> o passo a passo real (rastreabilidade). Diferente do `ask`/`chat` (onde NÓS
+> definimos o fluxo), aqui **o modelo decide** as ações.
+> ⚠️ Precisa de um modelo com **tool-calling** confiável — nem todo `:free` tem.
+> Fixe um em `OPENROUTER_MODEL` (procure "Tools" em https://openrouter.ai/models).
+> Se o modelo ignorar as tools, o agente responde direto (sem passos) — o
+> comportamento fica **visível**, não falha em silêncio.
 
 **Usar MongoDB como vector store** (Etapa 7 — persiste os vetores num banco real):
 ```bash

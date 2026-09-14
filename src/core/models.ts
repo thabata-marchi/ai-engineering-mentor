@@ -95,3 +95,59 @@ export interface ProfileSummary {
   readonly porFonte: { source: string; count: number }[]; // documentos mais consultados
   readonly ultimas: string[]; // últimas perguntas
 }
+
+// ============================================================================
+//  TIPOS DO AGENTE (Etapa 11) — tool-calling
+// ============================================================================
+//
+//  Um AGENTE é autônomo: dado um objetivo, ELE decide quais ferramentas (tools)
+//  usar e em que ordem, num loop, até concluir. Para isso, o LLM precisa de um
+//  contrato mais rico que o `generate(system, user) → texto`: mandamos a LISTA
+//  de tools disponíveis e o modelo pode responder pedindo para CHAMAR uma delas.
+
+/** A "ficha" de uma ferramenta que o modelo pode chamar (schema no padrão OpenAI/JSON Schema). */
+export interface ToolSpec {
+  readonly name: string; // ex.: "perguntar"
+  readonly description: string; // o que ela faz (o modelo usa isto para decidir)
+  readonly parameters: Record<string, unknown>; // JSON Schema dos argumentos
+}
+
+/** Um pedido do modelo para EXECUTAR uma tool (o "Act" do loop ReAct). */
+export interface ToolCall {
+  readonly id: string; // id que amarra o pedido ao resultado
+  readonly name: string; // qual tool chamar
+  readonly arguments: string; // argumentos em JSON (string, como a OpenAI devolve)
+}
+
+/**
+ * Uma mensagem do diálogo com o modelo em formato de chat. Diferente do `Turn`
+ * (aluno/mentor, da memória), aqui os papéis seguem o padrão da API: system,
+ * user, assistant e `tool` (o RESULTADO de uma tool devolvido ao modelo).
+ */
+export interface ChatMessage {
+  readonly role: 'system' | 'user' | 'assistant' | 'tool';
+  readonly content: string; // texto (pode ser vazio quando o assistant só pede tools)
+  readonly toolCalls?: ToolCall[]; // só em mensagens 'assistant' que pedem tools
+  readonly toolCallId?: string; // só em mensagens 'tool' (amarra ao pedido)
+  readonly name?: string; // só em 'tool': o nome da tool executada
+}
+
+/** O que o LLM devolve numa rodada: ou um texto final, ou pedidos de tool. */
+export interface ChatResult {
+  readonly content: string; // resposta final (vazio quando há toolCalls)
+  readonly toolCalls: ToolCall[]; // vazio quando o modelo já deu a resposta final
+}
+
+/** Um passo do raciocínio do agente — para RASTREABILIDADE (não inventar). */
+export interface AgentStep {
+  readonly tool: string; // qual tool foi chamada
+  readonly arguments: string; // com quais argumentos (JSON)
+  readonly result: string; // o que a tool devolveu
+}
+
+/** O resultado do agente: a resposta final + o rastro de tools que ele usou. */
+export interface AgentResult {
+  readonly answer: string; // a resposta final ao objetivo
+  readonly steps: AgentStep[]; // o passo a passo (quais tools, em que ordem)
+  readonly stoppedByLimit: boolean; // true se parou por atingir o teto de iterações
+}
