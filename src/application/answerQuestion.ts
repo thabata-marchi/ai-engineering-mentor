@@ -25,7 +25,13 @@
 // ============================================================================
 
 import type { Answer, RetrievedContext, ScoredChunk, Source, Turn } from '../core/models.ts';
-import type { EmbedderPort, LLMPort, MemoryPort, VectorStorePort } from '../core/ports.ts';
+import type {
+  EmbedderPort,
+  LLMPort,
+  MemoryPort,
+  ProfilePort,
+  VectorStorePort,
+} from '../core/ports.ts';
 
 /** As dependências do caso de uso — todas são PORTS (interfaces), não implementações. */
 export interface AnswerQuestionDeps {
@@ -36,6 +42,7 @@ export interface AnswerQuestionDeps {
   readonly mode?: MentorMode; // postura do mentor (padrão: 'guiado')
   readonly memory?: MemoryPort; // opcional: dá memória à conversa (Etapa 8)
   readonly historyLimit?: number; // quantos turnos passados incluir (padrão: 6)
+  readonly profile?: ProfilePort; // opcional: registra o perfil de estudo (Etapa 10)
 }
 
 // O mentor tem dois "jeitos de responder" (modos). Ambos são aterrados no
@@ -120,6 +127,15 @@ export class AnswerQuestion {
       const agora = new Date().toISOString();
       await this.deps.memory!.append(sessionId!, { role: 'aluno', text: question, at: agora });
       await this.deps.memory!.append(sessionId!, { role: 'mentor', text, at: agora });
+    }
+
+    // 6. PERFIL — registra O QUE o aluno estudou (pergunta + fontes tocadas).
+    //    Diferente da memória (o diálogo), o perfil é a visão agregada do estudo.
+    //    Usamos a mesma identidade da sessão como "id do aluno".
+    if (this.deps.profile) {
+      const studentId = sessionId ?? 'default';
+      const fontes = [...new Set(sources.map((s) => s.source))]; // fontes únicas
+      await this.deps.profile.record(studentId, question, fontes);
     }
 
     return { text, sources };

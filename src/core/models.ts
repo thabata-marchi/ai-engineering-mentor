@@ -81,3 +81,17 @@ export interface Turn {
   readonly text: string;
   readonly at: string; // data/hora em ISO (ex.: "2026-09-11T14:00:00.000Z")
 }
+
+/** Um registro do que o aluno estudou: a pergunta feita + as fontes tocadas. */
+export interface StudyRecord {
+  readonly question: string;
+  readonly sources: string[]; // nomes dos documentos/fontes consultados
+  readonly at: string; // ISO
+}
+
+/** Um resumo do perfil de aprendizado do aluno (o que ele vem estudando). */
+export interface ProfileSummary {
+  readonly total: number; // quantas perguntas fez
+  readonly porFonte: { source: string; count: number }[]; // documentos mais consultados
+  readonly ultimas: string[]; // últimas perguntas
+}

@@ -21,7 +21,7 @@
 //  daqui a pouco". Quem chama usa `await` para esperar o resultado.
 // ============================================================================
 
-import type { Chunk, Document, RetrievedContext, Turn } from './models.ts';
+import type { Chunk, Document, ProfileSummary, RetrievedContext, Turn } from './models.ts';
 
 /** Lê um arquivo (PDF/MD/txt) e devolve um Document (texto + metadados). */
 export interface DocumentParserPort {
@@ -57,4 +57,16 @@ export interface LLMPort {
 export interface MemoryPort {
   append(sessionId: string, turn: Turn): Promise<void>; // adiciona um turno
   history(sessionId: string, limit?: number): Promise<Turn[]>; // últimos turnos (em ordem)
+}
+
+/**
+ * Registra e resume o PERFIL DE APRENDIZADO do aluno: o que ele já perguntou e
+ * quais fontes foram tocadas. Diferente da memória (que guarda o diálogo turno a
+ * turno pra dar continuidade), o perfil é uma visão AGREGADA — serve pra saber
+ * "no que o aluno vem estudando / onde ele mais busca". Como é um PORT, pode
+ * viver em memória (testes) ou no Mongo (persistente), sem tocar no núcleo.
+ */
+export interface ProfilePort {
+  record(studentId: string, question: string, sources: string[]): Promise<void>; // registra 1 estudo
+  summary(studentId: string): Promise<ProfileSummary>; // devolve o resumo agregado
 }

@@ -8,8 +8,9 @@
 //  o Claude, um agente LangChain...) enxerga o mentor como um conjunto de
 //  capacidades e pode acioná-lo sozinho.
 //
-//  O MCP tem TRÊS tipos de capacidade (e a gente expõe uma de cada):
-//    • TOOL      → uma AÇÃO que o modelo executa. Aqui: `perguntar`.
+//  O MCP tem TRÊS tipos de capacidade (e a gente expõe):
+//    • TOOL      → uma AÇÃO que o modelo executa. Aqui: `perguntar` e, se houver
+//                  perfil, `meu_progresso` (o que o aluno vem estudando).
 //    • RESOURCE  → um DOCUMENTO/contexto que descreve o serviço. Aqui: `mentor://base`.
 //    • PROMPT    → um TEMPLATE de instrução pronto. Aqui: `estudo-guiado`.
 //
@@ -23,8 +24,9 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
 import type { AnswerQuestion } from '../application/answerQuestion.ts';
+import type { ProfilePort } from '../core/ports.ts';
 
-export function createMentorMcpServer(useCase: AnswerQuestion): McpServer {
+export function createMentorMcpServer(useCase: AnswerQuestion, profile?: ProfilePort): McpServer {
   const server = new McpServer({ name: 'ai-engineering-mentor', version: '0.1.0' });
 
   // ---------- TOOL: perguntar ----------
@@ -52,6 +54,43 @@ export function createMentorMcpServer(useCase: AnswerQuestion): McpServer {
       return { content: [{ type: 'text', text: texto }] };
     },
   );
+
+  // ---------- TOOL: meu_progresso (só quando há perfil) ----------
+  // Expõe a visão AGREGADA do estudo do aluno: quantas perguntas fez, quais
+  // fontes mais tocou e as últimas dúvidas. É a segunda capacidade da Etapa 10.
+  if (profile) {
+    server.registerTool(
+      'meu_progresso',
+      {
+        title: 'Meu progresso',
+        description:
+          'Mostra o perfil de aprendizado do aluno: total de perguntas, as fontes ' +
+          'mais consultadas e as últimas dúvidas. Use o mesmo identificador de sessão.',
+        inputSchema: {
+          sessao: z
+            .string()
+            .optional()
+            .describe('Identificador do aluno/conversa. Padrão: "default".'),
+        },
+      },
+      async ({ sessao }) => {
+        const resumo = await profile.summary(sessao ?? 'default');
+        if (resumo.total === 0) {
+          return { content: [{ type: 'text', text: 'Ainda não há estudos registrados nesta sessão.' }] };
+        }
+        const fontes = resumo.porFonte
+          .map((f) => `- ${f.source}: ${f.count} vez(es)`)
+          .join('\n');
+        const ultimas = resumo.ultimas.map((q, i) => `${i + 1}. ${q}`).join('\n');
+        const texto =
+          `📈 Progresso do aluno\n\n` +
+          `Perguntas feitas: ${resumo.total}\n\n` +
+          `Fontes mais consultadas:\n${fontes}\n\n` +
+          `Últimas perguntas:\n${ultimas}`;
+        return { content: [{ type: 'text', text: texto }] };
+      },
+    );
+  }
 
   // ---------- RESOURCE: descrição da base ----------
   // Dá contexto ao cliente/LLM sobre o que o mentor faz, sem precisar perguntar.

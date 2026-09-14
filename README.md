@@ -36,6 +36,7 @@ e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
 - [x] **Etapa 7 — MongoDB**: `MongoVectorStore` (mesmo `VectorStorePort`) — persiste os vetores num banco de verdade (`VECTOR_STORE=mongo`).
 - [x] **Etapa 8 — Memória**: `MemoryPort` + adapters (memória/Mongo) e **modo conversa** (`npm run chat`) — o mentor lembra do diálogo.
 - [x] **Etapa 9 — Servidor MCP**: o mentor exposto como MCP (tool `perguntar`, resource + prompt) — consumível no VSCode/agentes (`npm run mcp`).
+- [x] **Etapa 10 — Perfil do aluno**: `ProfilePort` + adapters (memória/Mongo, coleção `study_log`) registram o que você estuda; 2ª tool MCP `meu_progresso` e comando `/progresso` no chat.
 
 ## Estrutura
 ```
@@ -76,14 +77,18 @@ npm run chat        # abre um loop; escreva, ele responde e LEMBRA. "sair" encer
 ```
 > Com `VECTOR_STORE=mongo`, a conversa fica salva na coleção `conversations` do
 > Mongo (dá pra ver no Mongo Express). A sessão é `SESSION_ID` (padrão `default`).
+> Digite **`/progresso`** durante o chat para ver o que você vem estudando
+> (Etapa 10 — perfil do aluno): total de perguntas, fontes mais consultadas e as
+> últimas dúvidas. Com Mongo, isso persiste na coleção `study_log`.
 
 **Usar como servidor MCP** (Etapa 9 — o mentor vira uma ferramenta pra IA):
 ```bash
 npm run mcp                         # sobe o servidor MCP (STDIO). Espera um cliente.
 ```
 No **VSCode**: abra esta pasta como projeto — o `.vscode/mcp.json` já registra o
-servidor `ai-engineering-mentor`. O editor mostra a tool `perguntar`, o resource
-`mentor://base` e o prompt `estudo-guiado`. Para inspecionar manualmente, use o MCP Inspector apontando
+servidor `ai-engineering-mentor`. O editor mostra as tools `perguntar` e
+`meu_progresso` (perfil do aluno), o resource `mentor://base` e o prompt
+`estudo-guiado`. Para inspecionar manualmente, use o MCP Inspector apontando
 para o **node direto** (não use `npm run` aqui — o banner do npm suja o STDIO):
 ```bash
 npx @modelcontextprotocol/inspector node --dns-result-order=ipv4first \

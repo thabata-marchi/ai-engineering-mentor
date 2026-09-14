@@ -17,10 +17,12 @@ import { InMemoryVectorStore } from '../src/adapters/inMemoryVectorStore.ts';
 import { MongoVectorStore } from '../src/adapters/mongoVectorStore.ts';
 import { InMemoryMemory } from '../src/adapters/inMemoryMemory.ts';
 import { MongoMemory } from '../src/adapters/mongoMemory.ts';
+import { InMemoryProfile } from '../src/adapters/inMemoryProfile.ts';
+import { MongoProfile } from '../src/adapters/mongoProfile.ts';
 import { LocalEmbedder, type EmbedderDtype } from '../src/adapters/localEmbedder.ts';
 import { OpenRouterLLM } from '../src/adapters/openRouterLLM.ts';
 import { loadIndex, saveIndex } from '../src/adapters/indexCache.ts';
-import type { LLMPort, MemoryPort, VectorStorePort } from '../src/core/ports.ts';
+import type { LLMPort, MemoryPort, ProfilePort, VectorStorePort } from '../src/core/ports.ts';
 import type { MentorMode } from '../src/application/answerQuestion.ts';
 
 const CACHE_PATH = resolve(process.cwd(), 'data/vectorstore/index.json');
@@ -41,6 +43,7 @@ export interface Mentor {
   readonly embedder: LocalEmbedder;
   readonly store: VectorStorePort;
   readonly memory: MemoryPort;
+  readonly profile: ProfilePort;
   readonly llm: LLMPort;
   readonly topK: number;
   readonly mode: MentorMode;
@@ -72,6 +75,9 @@ export async function setupMentor(apiKey: string): Promise<Mentor> {
   const memory: MemoryPort = usingMongo
     ? new MongoMemory({ url: mongoUrl })
     : new InMemoryMemory();
+  const profile: ProfilePort = usingMongo
+    ? new MongoProfile({ url: mongoUrl })
+    : new InMemoryProfile();
 
   const deps: IngestDeps = { parser, chunker, embedder, files };
   if (usingMongo) {
@@ -87,6 +93,7 @@ export async function setupMentor(apiKey: string): Promise<Mentor> {
     embedder,
     store,
     memory,
+    profile,
     llm,
     topK,
     mode,
@@ -96,6 +103,7 @@ export async function setupMentor(apiKey: string): Promise<Mentor> {
       if (usingMongo) {
         await (store as MongoVectorStore).close();
         await (memory as MongoMemory).close();
+        await (profile as MongoProfile).close();
       }
     },
   };

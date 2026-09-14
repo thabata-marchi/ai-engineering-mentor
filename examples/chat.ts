@@ -9,6 +9,7 @@
 //
 //  Rodar:  npm run chat
 //  Sair:   digite "sair" (ou Ctrl+C). Sessão: SESSION_ID no .env (padrão "default").
+//  Perfil: digite "/progresso" pra ver o que você vem estudando (Etapa 10).
 // ============================================================================
 
 import { createInterface } from 'node:readline/promises';
@@ -30,6 +31,7 @@ async function main() {
     store: mentor.store,
     llm: mentor.llm,
     memory: mentor.memory, // <- a memória entra aqui
+    profile: mentor.profile, // <- registra o perfil de estudo (Etapa 10)
     topK: mentor.topK,
     mode: mentor.mode,
   });
@@ -41,7 +43,8 @@ async function main() {
   console.log(
     `🎓 Modo: ${mentor.mode} | 🗄️  Store: ${mentor.usingMongo ? 'MongoDB' : 'memória'} | 🧠 sessão: ${sessionId}`,
   );
-  console.log('💬 Modo conversa. Escreva sua pergunta (ou "sair" para encerrar).\n');
+  console.log('💬 Modo conversa. Escreva sua pergunta (ou "sair" para encerrar).');
+  console.log('   Dica: "/progresso" mostra o que você vem estudando.\n');
 
   const rl = createInterface({ input: stdin, output: stdout });
   try {
@@ -49,6 +52,23 @@ async function main() {
       const pergunta = (await rl.question('você › ')).trim();
       if (!pergunta) continue;
       if (['sair', 'exit', 'quit'].includes(pergunta.toLowerCase())) break;
+
+      // Comando: mostra o resumo do perfil de estudo, sem chamar o LLM.
+      if (pergunta.toLowerCase() === '/progresso') {
+        const resumo = await mentor.profile.summary(sessionId);
+        if (resumo.total === 0) {
+          console.log('\n📈 Ainda não há estudos registrados nesta sessão.\n');
+        } else {
+          const fontes = resumo.porFonte.map((f) => `   - ${f.source}: ${f.count}x`).join('\n');
+          const ultimas = resumo.ultimas.map((q, i) => `   ${i + 1}. ${q}`).join('\n');
+          console.log(
+            `\n📈 Progresso (${resumo.total} pergunta(s))\n` +
+              `Fontes mais consultadas:\n${fontes}\n` +
+              `Últimas perguntas:\n${ultimas}\n`,
+          );
+        }
+        continue;
+      }
 
       const answer = await useCase.execute(pergunta, sessionId); // <- passa a sessão
       console.log(`\nmentor › ${answer.text}`);

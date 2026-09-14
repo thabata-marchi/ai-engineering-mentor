@@ -31,11 +31,13 @@ async function main() {
     store: mentor.store,
     llm: mentor.llm,
     memory: mentor.memory,
+    profile: mentor.profile, // <- registra o perfil de estudo (Etapa 10)
     topK: mentor.topK,
     mode: mentor.mode,
   });
 
-  const server = createMentorMcpServer(useCase);
+  // Passamos o perfil também ao servidor → habilita a tool `meu_progresso`.
+  const server = createMentorMcpServer(useCase, mentor.profile);
   await server.connect(new StdioServerTransport());
   console.error('🔌 Servidor MCP do mentor no ar (STDIO). Aguardando o cliente...');
 
