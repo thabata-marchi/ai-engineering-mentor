@@ -1,8 +1,8 @@
 # 🧠 AI Engineering Mentor (TypeScript)
 
+[![CI](https://github.com/thabata-marchi/ai-engineering-mentor/actions/workflows/ci.yml/badge.svg)](https://github.com/thabata-marchi/ai-engineering-mentor/actions/workflows/ci.yml)
 ![Node](https://img.shields.io/badge/node-%3E%3D22.6-3c873a)
 ![TypeScript](https://img.shields.io/badge/TypeScript-nativo%20(sem%20build)-3178c6)
-![Tests](https://img.shields.io/badge/tests-74%20(node%3Atest)-2ea44f)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Framework](https://img.shields.io/badge/framework-nenhum%20(feito%20do%20zero)-orange)
 
