@@ -21,6 +21,8 @@ import { InMemoryProfile } from '../src/adapters/inMemoryProfile.ts';
 import { MongoProfile } from '../src/adapters/mongoProfile.ts';
 import { LocalEmbedder, type EmbedderDtype } from '../src/adapters/localEmbedder.ts';
 import { OpenRouterLLM } from '../src/adapters/openRouterLLM.ts';
+import { RateLimitedLLM } from '../src/adapters/rateLimitedLLM.ts';
+import { RateLimiter } from '../src/core/rateLimiter.ts';
 import { loadIndex, saveIndex } from '../src/adapters/indexCache.ts';
 import type { LLMPort, MemoryPort, ProfilePort, VectorStorePort } from '../src/core/ports.ts';
 import type { MentorMode } from '../src/application/answerQuestion.ts';
@@ -45,19 +47,45 @@ export interface Mentor {
   readonly memory: MemoryPort;
   readonly profile: ProfilePort;
   readonly llm: LLMPort;
+  readonly limiter: RateLimiter; // compartilhado (RAG + agente) p/ proteger a cota
   readonly topK: number;
   readonly mode: MentorMode;
   readonly usingMongo: boolean;
   cleanup(): Promise<void>;
 }
 
+/**
+ * Guard de segredo (Etapa 12): avisa cedo se a chave parece um placeholder ou
+ * vazia. Não é "segurança forte" — é higiene: falha com mensagem clara em vez de
+ * fazer uma chamada que o OpenRouter recusaria de qualquer forma.
+ */
+function assertApiKey(apiKey: string): void {
+  const suspeita = !apiKey || apiKey.includes('cole-sua-chave') || apiKey.trim().length < 12;
+  if (suspeita) {
+    throw new Error(
+      'OPENROUTER_API_KEY ausente ou parece um placeholder. Copie .env.example para .env ' +
+        'e cole sua chave real (crie em https://openrouter.ai/keys). Nunca comite a chave.',
+    );
+  }
+}
+
 export async function setupMentor(apiKey: string): Promise<Mentor> {
+  assertApiKey(apiKey);
   const parser = new FileParser();
   const chunker = new SlidingWindowChunker(CHUNK_CONFIG);
   const dtype = (process.env.EMBEDDER_DTYPE as EmbedderDtype) || 'q8';
   const embedder = new LocalEmbedder(dtype);
   const timeoutMs = process.env.LLM_TIMEOUT_MS ? Number(process.env.LLM_TIMEOUT_MS) : 120_000;
-  const llm = new OpenRouterLLM({ apiKey, model: process.env.OPENROUTER_MODEL, timeoutMs });
+  // Rate limit COMPARTILHADO: protege a cota do OpenRouter (RAG + agente somam no
+  // mesmo teto). Padrão generoso (20/min) — ajuste com RATE_LIMIT_MAX/WINDOW.
+  const limiter = new RateLimiter({
+    max: process.env.RATE_LIMIT_MAX ? Number(process.env.RATE_LIMIT_MAX) : 20,
+    windowMs: process.env.RATE_LIMIT_WINDOW_MS ? Number(process.env.RATE_LIMIT_WINDOW_MS) : 60_000,
+  });
+  const llm = new RateLimitedLLM(
+    new OpenRouterLLM({ apiKey, model: process.env.OPENROUTER_MODEL, timeoutMs }),
+    limiter,
+  );
   console.error(`🤖 Modelo: ${process.env.OPENROUTER_MODEL ?? 'openrouter/free (padrão)'}`);
 
   const files = (await readdir(DOCS_DIR)).filter((f) => FileParser.suporta(f));
@@ -95,6 +123,7 @@ export async function setupMentor(apiKey: string): Promise<Mentor> {
     memory,
     profile,
     llm,
+    limiter,
     topK,
     mode,
     usingMongo,

@@ -32,6 +32,7 @@ import type {
   ProfilePort,
   VectorStorePort,
 } from '../core/ports.ts';
+import { validateQuestion } from '../core/validation.ts';
 
 /** As dependências do caso de uso — todas são PORTS (interfaces), não implementações. */
 export interface AnswerQuestionDeps {
@@ -43,6 +44,7 @@ export interface AnswerQuestionDeps {
   readonly memory?: MemoryPort; // opcional: dá memória à conversa (Etapa 8)
   readonly historyLimit?: number; // quantos turnos passados incluir (padrão: 6)
   readonly profile?: ProfilePort; // opcional: registra o perfil de estudo (Etapa 10)
+  readonly maxQuestionLen?: number; // teto do tamanho da pergunta (Etapa 12)
 }
 
 // O mentor tem dois "jeitos de responder" (modos). Ambos são aterrados no
@@ -88,12 +90,14 @@ export class AnswerQuestion {
   private readonly topK: number;
   private readonly historyLimit: number;
   private readonly systemPrompt: string;
+  private readonly maxQuestionLen?: number;
 
   constructor(deps: AnswerQuestionDeps) {
     this.deps = deps;
     this.topK = deps.topK ?? 4;
     this.historyLimit = deps.historyLimit ?? 6;
     this.systemPrompt = PROMPTS[deps.mode ?? 'guiado']; // padrão: socrático guiado
+    this.maxQuestionLen = deps.maxQuestionLen;
   }
 
   /**
@@ -102,6 +106,9 @@ export class AnswerQuestion {
    * Sem isso, funciona como antes (uma pergunta isolada).
    */
   async execute(question: string, sessionId?: string): Promise<Answer> {
+    // 0. VALIDAÇÃO — recusa pergunta vazia/gigante cedo (Etapa 12) e normaliza.
+    question = validateQuestion(question, this.maxQuestionLen);
+
     const usarMemoria = Boolean(this.deps.memory && sessionId);
 
     // 0. MEMÓRIA — recupera os últimos turnos da conversa (se houver).

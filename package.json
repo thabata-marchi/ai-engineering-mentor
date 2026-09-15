@@ -1,29 +1,56 @@
 {
   "name": "ai-engineering-mentor",
   "version": "0.1.0",
-  "description": "Mentor de programação com RAG — laboratório de estudo (pós em Engenharia de IA)",
+  "description": "Mentor de programação com IA (RAG socrático + MCP + agente) — laboratório de estudo em TypeScript, arquitetura hexagonal",
   "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "engines": {
     "node": ">=22.6.0"
   },
+  "files": [
+    "src/",
+    "examples/",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    ".env.example"
+  ],
   "scripts": {
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "test:watch": "node --experimental-strip-types --test --watch tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
     "demo": "node --experimental-strip-types examples/demo.ts",
     "ask": "node --dns-result-order=ipv4first --env-file-if-exists=.env --experimental-strip-types examples/ask.ts",
     "chat": "node --dns-result-order=ipv4first --env-file-if-exists=.env --experimental-strip-types examples/chat.ts",
     "mcp": "node --dns-result-order=ipv4first --env-file-if-exists=.env --experimental-strip-types examples/mcp.ts",
-    "agent": "node --dns-result-order=ipv4first --env-file-if-exists=.env --experimental-strip-types examples/agent.ts"
+    "agent": "node --dns-result-order=ipv4first --env-file-if-exists=.env --experimental-strip-types examples/agent.ts",
+    "prepublishOnly": "npm run typecheck && npm test"
   },
   "keywords": [
     "rag",
-    "langchain",
-    "langgraph",
+    "mcp",
+    "model-context-protocol",
+    "ai-agent",
     "mentor",
+    "typescript",
+    "hexagonal-architecture",
+    "openrouter",
+    "embeddings",
     "estudo"
   ],
-  "author": "",
+  "author": "Thabata Marchi <tatha.marchi@gmail.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thabata-marchi/ai-engineering-mentor.git"
+  },
+  "homepage": "https://github.com/thabata-marchi/ai-engineering-mentor#readme",
+  "bugs": {
+    "url": "https://github.com/thabata-marchi/ai-engineering-mentor/issues"
+  },
   "dependencies": {
     "@huggingface/transformers": "^3.7.0",
     "@modelcontextprotocol/sdk": "^1.30.0",

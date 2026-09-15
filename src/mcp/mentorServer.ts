@@ -25,6 +25,7 @@ import { z } from 'zod';
 
 import type { AnswerQuestion } from '../application/answerQuestion.ts';
 import type { ProfilePort } from '../core/ports.ts';
+import { MAX_QUESTION_LEN } from '../core/validation.ts';
 
 export function createMentorMcpServer(useCase: AnswerQuestion, profile?: ProfilePort): McpServer {
   const server = new McpServer({ name: 'ai-engineering-mentor', version: '0.1.0' });
@@ -38,9 +39,16 @@ export function createMentorMcpServer(useCase: AnswerQuestion, profile?: Profile
         'Faz uma pergunta ao mentor de programação. Ele responde ancorado na base ' +
         'de conhecimento (RAG), de forma socrática, e cita as fontes usadas.',
       inputSchema: {
-        pergunta: z.string().describe('A pergunta do aluno'),
+        // Validação na borda (Etapa 12): recusa vazio e limita o tamanho — o zod
+        // barra antes mesmo de chegar ao caso de uso, com mensagem clara.
+        pergunta: z
+          .string()
+          .min(1, 'A pergunta não pode ser vazia.')
+          .max(MAX_QUESTION_LEN, `Pergunta muito longa (máximo ${MAX_QUESTION_LEN} caracteres).`)
+          .describe('A pergunta do aluno'),
         sessao: z
           .string()
+          .max(200)
           .optional()
           .describe('Identificador da conversa, para o mentor lembrar dos turnos. Opcional.'),
       },

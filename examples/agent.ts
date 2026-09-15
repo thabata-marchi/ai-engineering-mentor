@@ -25,6 +25,7 @@ import { AnswerQuestion } from '../src/application/answerQuestion.ts';
 import { MentorAgent } from '../src/application/mentorAgent.ts';
 import { McpAgentTools } from '../src/adapters/mcpAgentTools.ts';
 import { OpenRouterChatLLM } from '../src/adapters/openRouterChatLLM.ts';
+import { RateLimitedChatLLM } from '../src/adapters/rateLimitedLLM.ts';
 import { createMentorMcpServer } from '../src/mcp/mentorServer.ts';
 import { setupMentor } from './setup.ts';
 
@@ -61,7 +62,12 @@ async function main() {
 
   // 3. O agente: cérebro = LLM com tool-calling; mãos = as tools do MCP.
   const timeoutMs = process.env.LLM_TIMEOUT_MS ? Number(process.env.LLM_TIMEOUT_MS) : 120_000;
-  const chatLLM = new OpenRouterChatLLM({ apiKey, model: process.env.OPENROUTER_MODEL, timeoutMs });
+  // Mesmo RateLimiter do setup: o agente pode chamar o LLM várias vezes no loop,
+  // então o rate limit é ainda mais importante aqui (protege a cota).
+  const chatLLM = new RateLimitedChatLLM(
+    new OpenRouterChatLLM({ apiKey, model: process.env.OPENROUTER_MODEL, timeoutMs }),
+    mentor.limiter,
+  );
   const agent = new MentorAgent({ llm: chatLLM, tools: new McpAgentTools(client) });
 
   console.error(`🎯 Objetivo: ${objetivo}\n🤖 Agente pensando (pode chamar tools várias vezes)...\n`);

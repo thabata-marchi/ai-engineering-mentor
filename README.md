@@ -38,6 +38,7 @@ e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
 - [x] **Etapa 9 — Servidor MCP**: o mentor exposto como MCP (tool `perguntar`, resource + prompt) — consumível no VSCode/agentes (`npm run mcp`).
 - [x] **Etapa 10 — Perfil do aluno**: `ProfilePort` + adapters (memória/Mongo, coleção `study_log`) registram o que você estuda; 2ª tool MCP `meu_progresso` e comando `/progresso` no chat.
 - [x] **Etapa 11 — Agente**: agente autônomo (loop ReAct) que **consome o MCP** — `ToolCallingLLMPort` (OpenRouter) + `AgentToolsPort` (cliente MCP); dado um objetivo, ele decide quais tools chamar (`npm run agent`).
+- [x] **Etapa 12 — Segurança + publicação**: rate limiting (janela deslizante, protege a cota), validação/limites de entrada, guard de segredos + `SECURITY.md` (modelo de ameaças), e pacote pronto pra npm (`files`, `exports`, `prepublishOnly`, `CONTRIBUTING.md`, `PUBLISHING.md`).
 
 ## Estrutura
 ```
@@ -139,6 +140,24 @@ npm run ask -- "sua pergunta sobre o material"
 > Depois disso o índice fica salvo em `data/vectorstore/index.json` e as próximas
 > execuções são **instantâneas** — ele só reindexa se você trocar os arquivos ou a
 > configuração. Para forçar reindexação, apague esse arquivo.
+
+## Segurança (Etapa 12)
+Hardening proporcional ao contexto (roda **local via STDIO**, sem rede):
+- **Rate limiting** — limitador de janela deslizante protege sua cota do OpenRouter
+  e contém um agente em loop. Ajuste com `RATE_LIMIT_MAX` (padrão 20) e
+  `RATE_LIMIT_WINDOW_MS` (padrão 60000). RAG e agente somam no mesmo teto.
+- **Validação de entrada** — pergunta vazia é recusada e há teto de tamanho
+  (`MAX_QUESTION_LEN`, também no schema zod da tool MCP).
+- **Segredos** — chave só via `.env` (ignorado pelo Git); um *guard* avisa cedo se
+  ela parecer placeholder. Detalhes e modelo de ameaças em [`SECURITY.md`](./SECURITY.md).
+> Auth/token **não** foi implementado de propósito: num servidor STDIO local não
+> agrega segurança real (só faria sentido expondo por HTTP). Veja o `SECURITY.md`.
+
+## Publicar (npm / open source)
+Pacote pronto pra publicar (campo `files`, `exports`, `prepublishOnly` rodando
+tipos+testes). O passo a passo — que **você** executa, porque envolve login e
+publicação — está em [`PUBLISHING.md`](./PUBLISHING.md). Para inspecionar o que
+iria no pacote sem publicar: `npm pack --dry-run`.
 
 ## Entendendo o `package.json`
 > ⚠️ O `package.json` é um arquivo **JSON**, e **JSON não aceita comentários** (`//`
