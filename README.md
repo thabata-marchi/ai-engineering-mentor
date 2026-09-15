@@ -1,29 +1,52 @@
 # 🧠 AI Engineering Mentor (TypeScript)
 
-> 🇬🇧 **In short:** a study project — a RAG-based programming mentor built step by
-> step in TypeScript, with hexagonal architecture and tests from day one. Code
-> comments are in Portuguese on purpose (it's a learning log). The knowledge base
-> (books/PDFs) is **not** included for copyright reasons — you bring your own.
+![Node](https://img.shields.io/badge/node-%3E%3D22.6-3c873a)
+![TypeScript](https://img.shields.io/badge/TypeScript-nativo%20(sem%20build)-3178c6)
+![Tests](https://img.shields.io/badge/tests-74%20(node%3Atest)-2ea44f)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Framework](https://img.shields.io/badge/framework-nenhum%20(feito%20do%20zero)-orange)
 
-Mentor de programação com IA (RAG + método socrático) — **laboratório de estudo**
-da pós em Engenharia de IA + fundamentos de Engenharia de Software.
+Mentor de programação com IA construído **do zero** em TypeScript: um sistema
+**RAG** (respostas ancoradas numa base de conhecimento, com citação de fontes),
+com **método socrático**, exposto como **servidor MCP** e consumível por um
+**agente autônomo** — tudo sobre **arquitetura hexagonal** e **testes desde o dia 1**.
 
 > Não é um chatbot: é um mentor que **conduz o raciocínio**, ancora as respostas
-> numa base de conhecimento própria (RAG) e **cita as fontes**.
+> numa base de conhecimento própria (RAG) e **cita as fontes** (não inventa).
 
-> ⚠️ **Projeto de estudo.** O objetivo é *aprender construindo* — por isso os
-> comentários do código são detalhados e em português (um diário de aprendizado).
-> A **base de conhecimento não vem incluída**: livros/PDFs têm direitos autorais,
-> então você coloca os seus na pasta `data/` (ignorada pelo Git).
+> 🇬🇧 **In short:** a from-scratch, RAG-based Socratic programming mentor in
+> TypeScript — hexagonal architecture, tests from day one, exposed over MCP and
+> driven by an autonomous agent. Comments are in Portuguese on purpose (a learning
+> log). Bring your own knowledge base (books/PDFs are not included).
 
-**Stack:** TypeScript + Node (24) — a mesma linguagem do curso. LangChain.js /
-LangGraph.js + OpenRouter entram nas próximas etapas.
+## Destaques (o que este projeto demonstra)
+- **RAG completo, sem framework** — chunking, embeddings **locais** (transformers.js),
+  busca por similaridade de cosseno, prompt aterrado e resposta **com fontes**.
+- **Arquitetura hexagonal + SOLID** — o núcleo depende só de *ports* (interfaces);
+  trocar LLM, banco ou embedder = trocar 1 adapter. Padrões: Strategy, Decorator, Repository.
+- **MCP (Model Context Protocol)** — o mentor vira ferramenta pra IA (tools
+  `perguntar`/`meu_progresso`, resource e prompt).
+- **Agente autônomo** — loop ReAct com *tool-calling* que **consome o próprio MCP**.
+- **Persistência real** — MongoDB como vector store, memória de conversa e perfil de estudo.
+- **Rigor de engenharia** — rate limiting, validação, observabilidade (tracing) e
+  **avaliação** (dataset dourado + LLM-as-judge opcional). **74 testes** (node:test).
 
-## Como estamos construindo
-Etapa por etapa, entendendo cada peça. Ver `ANALISE-ARQUITETURA.md` (a análise completa)
-e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
+> ⚠️ **Projeto de estudo / portfólio.** O objetivo é *aprender construindo* — por
+> isso os comentários do código são detalhados e em português (um diário de
+> aprendizado). A **base de conhecimento não vem incluída**: livros/PDFs têm
+> direitos autorais, então você coloca os seus na pasta `data/` (ignorada pelo Git).
 
-**Progresso (Fase 1 — RAG MVP):**
+**Stack:** TypeScript rodando **nativo** no Node (≥22.6, ideal 24) — sem passo de
+build. Embeddings locais via **transformers.js**; LLM via **OpenRouter**;
+persistência opcional em **MongoDB**; MCP via **@modelcontextprotocol/sdk**;
+schemas com **zod**. Sem LangChain/LangGraph — a orquestração (RAG e agente) é
+feita à mão, de propósito, para entender cada peça.
+
+## Como foi construído
+Etapa por etapa, entendendo cada peça. Ver `ANALISE-ARQUITETURA.md` (a análise
+completa) e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
+
+**Progresso (13 etapas — completo):**
 - [x] **Etapa 1 — Fundação**: esqueleto hexagonal (`core` = models + ports) + testes.
 - [x] **Etapa 2 — Ingestão**: parser de texto/Markdown + chunking (sliding window).
 - [x] **Etapa 2b — PDF**: `PdfParser` (unpdf) + `FileParser` (despachante por extensão: .pdf/.md/.txt).
@@ -39,6 +62,7 @@ e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
 - [x] **Etapa 10 — Perfil do aluno**: `ProfilePort` + adapters (memória/Mongo, coleção `study_log`) registram o que você estuda; 2ª tool MCP `meu_progresso` e comando `/progresso` no chat.
 - [x] **Etapa 11 — Agente**: agente autônomo (loop ReAct) que **consome o MCP** — `ToolCallingLLMPort` (OpenRouter) + `AgentToolsPort` (cliente MCP); dado um objetivo, ele decide quais tools chamar (`npm run agent`).
 - [x] **Etapa 12 — Segurança + publicação**: rate limiting (janela deslizante, protege a cota), validação/limites de entrada, guard de segredos + `SECURITY.md` (modelo de ameaças), e pacote pronto pra npm (`files`, `exports`, `prepublishOnly`, `CONTRIBUTING.md`, `PUBLISHING.md`).
+- [x] **Etapa 13 — Observabilidade + avaliação**: `TracerPort` (spans locais: retrieval/generation) + harness de avaliação (`npm run eval`) com dataset dourado e métricas (source-hit, citação, menção) — e **LLM-as-judge** opcional pra medir fidelidade.
 
 ## Estrutura
 ```
@@ -46,8 +70,18 @@ src/core/         → lógica pura (models, ports, chunker, similarity). NÃO de
 src/adapters/     → implementações concretas (parser, embeddings, vetores, LLM, MCP tools).
 src/application/  → casos de uso (AnswerQuestion, MentorAgent) — orquestram as peças.
 src/mcp/          → o mentor exposto como servidor MCP (tools/resource/prompt).
-examples/         → executáveis: demo, ask, chat, mcp, agent.
+src/index.ts      → API pública (barrel) para quem importar o pacote.
+examples/         → executáveis: demo, ask, chat, mcp, agent, eval (+ golden.json).
 tests/            → testes desde o dia 1 (node:test); tests/helpers = dublês (fakes).
+```
+
+**Fluxo (visão geral):**
+```
+arquivos → parse → chunks → embeddings → vector store
+                                              │
+pergunta → embed → busca top-k → prompt aterrado → LLM → resposta + fontes
+                                              │
+             MCP (perguntar/meu_progresso) ← agente (loop ReAct)
 ```
 
 ## Rodar os testes
@@ -140,6 +174,16 @@ npm run ask -- "sua pergunta sobre o material"
 > Depois disso o índice fica salvo em `data/vectorstore/index.json` e as próximas
 > execuções são **instantâneas** — ele só reindexa se você trocar os arquivos ou a
 > configuração. Para forçar reindexação, apague esse arquivo.
+
+**Avaliar a qualidade** (Etapa 13 — "responde" ≠ "responde bem"):
+```bash
+npm run eval                 # roda o dataset dourado e imprime um placar
+EVAL_JUDGE=1 npm run eval     # + LLM-as-judge (mede fidelidade; gasta cota)
+EVAL_TRACE=1 npm run eval     # + trace ao vivo de cada passo (retrieval/generation)
+```
+> Métricas determinísticas (rodam de graça): **source-hit** (a fonte esperada
+> apareceu no retrieval?), **citação** (citou `[n]`?) e **menção** (trouxe os
+> termos-chave?). O dataset fica em `examples/golden.json` — edite/adicione casos.
 
 ## Segurança (Etapa 12)
 Hardening proporcional ao contexto (roda **local via STDIO**, sem rede):
