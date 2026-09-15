@@ -33,6 +33,7 @@ import type {
   VectorStorePort,
 } from '../core/ports.ts';
 import { validateQuestion } from '../core/validation.ts';
+import { NoopTracer, type TracerPort } from '../core/tracing.ts';
 
 /** As dependências do caso de uso — todas são PORTS (interfaces), não implementações. */
 export interface AnswerQuestionDeps {
@@ -45,6 +46,7 @@ export interface AnswerQuestionDeps {
   readonly historyLimit?: number; // quantos turnos passados incluir (padrão: 6)
   readonly profile?: ProfilePort; // opcional: registra o perfil de estudo (Etapa 10)
   readonly maxQuestionLen?: number; // teto do tamanho da pergunta (Etapa 12)
+  readonly tracer?: TracerPort; // opcional: observabilidade por spans (Etapa 13)
 }
 
 // O mentor tem dois "jeitos de responder" (modos). Ambos são aterrados no
@@ -91,6 +93,7 @@ export class AnswerQuestion {
   private readonly historyLimit: number;
   private readonly systemPrompt: string;
   private readonly maxQuestionLen?: number;
+  private readonly tracer: TracerPort;
 
   constructor(deps: AnswerQuestionDeps) {
     this.deps = deps;
@@ -98,6 +101,7 @@ export class AnswerQuestion {
     this.historyLimit = deps.historyLimit ?? 6;
     this.systemPrompt = PROMPTS[deps.mode ?? 'guiado']; // padrão: socrático guiado
     this.maxQuestionLen = deps.maxQuestionLen;
+    this.tracer = deps.tracer ?? new NoopTracer(); // sem tracer → não observa (custo zero)
   }
 
   /**
@@ -117,14 +121,21 @@ export class AnswerQuestion {
       : [];
 
     // 1. RETRIEVAL — vetoriza a pergunta e busca os chunks mais próximos.
+    //    (envolto num span → medimos tempo e nº de fontes recuperadas)
+    const spanRetrieval = this.tracer.startSpan('retrieval', { topK: this.topK });
     const [queryVector] = await this.deps.embedder.embed([question]);
     const context = await this.deps.store.search(queryVector, this.topK);
+    spanRetrieval.setAttribute('chunks', context.chunks.length);
+    spanRetrieval.end();
 
     // 2. AUGMENTATION — monta o prompt com o HISTÓRICO + o contexto recuperado.
     const userPrompt = buildUserPrompt(question, context, history);
 
     // 3. GENERATION — o LLM gera a resposta seguindo as regras do modo escolhido.
+    const spanGen = this.tracer.startSpan('generation', { mode: this.deps.mode ?? 'guiado' });
     const text = await this.deps.llm.generate(this.systemPrompt, userPrompt);
+    spanGen.setAttribute('respLen', text.length);
+    spanGen.end();
 
     // 4. FONTES — sempre devolvemos de onde veio o contexto (rastreabilidade).
     const sources = context.chunks.map(toSource);

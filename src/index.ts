@@ -20,6 +20,9 @@ export { cosineSimilarity } from './core/similarity.ts';
 export { rankByCosine } from './core/ranking.ts';
 export { RateLimiter, RateLimitError } from './core/rateLimiter.ts';
 export { validateQuestion, ValidationError, MAX_QUESTION_LEN } from './core/validation.ts';
+export { NoopTracer, InMemoryTracer, ConsoleTracer } from './core/tracing.ts';
+export { scoreCase, aggregate } from './core/eval.ts';
+export type { GoldenCase, CaseResult, EvalReport } from './core/eval.ts';
 
 // Casos de uso.
 export { AnswerQuestion, buildUserPrompt } from './application/answerQuestion.ts';
@@ -41,6 +44,7 @@ export { OpenRouterLLM } from './adapters/openRouterLLM.ts';
 export { OpenRouterChatLLM } from './adapters/openRouterChatLLM.ts';
 export { RateLimitedLLM, RateLimitedChatLLM } from './adapters/rateLimitedLLM.ts';
 export { McpAgentTools } from './adapters/mcpAgentTools.ts';
+export { LLMJudge, parseNota } from './adapters/llmJudge.ts';
 
 // Servidor MCP.
 export { createMentorMcpServer } from './mcp/mentorServer.ts';

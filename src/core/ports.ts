@@ -103,3 +103,13 @@ export interface AgentToolsPort {
   listTools(): Promise<ToolSpec[]>; // quais tools existem (para o modelo escolher)
   callTool(name: string, argumentsJson: string): Promise<string>; // executa e devolve o texto
 }
+
+/**
+ * "Juiz" da avaliação (Etapa 13, opcional): dá uma nota de FIDELIDADE — o quanto
+ * a resposta se apoia no contexto/fontes, sem inventar (0 = inventou, 1 = fiel).
+ * É o "LLM-as-judge": um modelo avalia a saída de outro. Fica atrás de um PORT
+ * porque é OPCIONAL e caro (gasta cota); nos testes usamos um juiz falso.
+ */
+export interface JudgePort {
+  faithfulness(question: string, answer: string, context: string): Promise<number>; // 0 a 1
+}

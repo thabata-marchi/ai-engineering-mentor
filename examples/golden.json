@@ -1,0 +1,17 @@
+[
+  {
+    "question": "o que é o Single Responsibility Principle?",
+    "expectedSources": ["srp.md"],
+    "mustMention": ["responsabilidade"]
+  },
+  {
+    "question": "por que usar overlap no chunking?",
+    "expectedSources": ["chunking.md"],
+    "mustMention": ["contexto"]
+  },
+  {
+    "question": "para que serve o padrão Repository?",
+    "expectedSources": ["repository.md"],
+    "mustMention": ["persist"]
+  }
+]
