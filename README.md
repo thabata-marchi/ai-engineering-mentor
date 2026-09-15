@@ -28,8 +28,9 @@ com **método socrático**, exposto como **servidor MCP** e consumível por um
   `perguntar`/`meu_progresso`, resource e prompt).
 - **Agente autônomo** — loop ReAct com *tool-calling* que **consome o próprio MCP**.
 - **Persistência real** — MongoDB como vector store, memória de conversa e perfil de estudo.
-- **Rigor de engenharia** — rate limiting, validação, observabilidade (tracing) e
-  **avaliação** (dataset dourado + LLM-as-judge opcional). **74 testes** (node:test).
+- **Rigor de engenharia** — rate limiting, validação, observabilidade (tracing),
+  **avaliação** (dataset dourado + LLM-as-judge) e **guardrails contra prompt
+  injection** (defesa em profundidade + resistência medida). **80 testes** (node:test).
 
 > ⚠️ **Projeto de estudo / portfólio.** O objetivo é *aprender construindo* — por
 > isso os comentários do código são detalhados e em português (um diário de
@@ -63,6 +64,7 @@ completa) e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
 - [x] **Etapa 11 — Agente**: agente autônomo (loop ReAct) que **consome o MCP** — `ToolCallingLLMPort` (OpenRouter) + `AgentToolsPort` (cliente MCP); dado um objetivo, ele decide quais tools chamar (`npm run agent`).
 - [x] **Etapa 12 — Segurança + publicação**: rate limiting (janela deslizante, protege a cota), validação/limites de entrada, guard de segredos + `SECURITY.md` (modelo de ameaças), e pacote pronto pra npm (`files`, `exports`, `prepublishOnly`, `CONTRIBUTING.md`, `PUBLISHING.md`).
 - [x] **Etapa 13 — Observabilidade + avaliação**: `TracerPort` (spans locais: retrieval/generation) + harness de avaliação (`npm run eval`) com dataset dourado e métricas (source-hit, citação, menção) — e **LLM-as-judge** opcional pra medir fidelidade.
+- [x] **Etapa 14 — Guardrails (prompt injection)**: `guardrails.ts` — contexto delimitado como dado não-confiável + cláusula defensiva nos prompts + detecção/sinalização de trechos suspeitos (`detectInjection`); casos adversariais no eval medem a **taxa de resistência**.
 
 ## Estrutura
 ```
@@ -197,6 +199,11 @@ Hardening proporcional ao contexto (roda **local via STDIO**, sem rede):
   (`MAX_QUESTION_LEN`, também no schema zod da tool MCP).
 - **Segredos** — chave só via `.env` (ignorado pelo Git); um *guard* avisa cedo se
   ela parecer placeholder. Detalhes e modelo de ameaças em [`SECURITY.md`](./SECURITY.md).
+- **Guardrails contra prompt injection (Etapa 14)** — o contexto recuperado é
+  delimitado e tratado como **dado não-confiável**; os prompts instruem o modelo a
+  não obedecer comandos vindos dos documentos; trechos suspeitos são detectados e
+  sinalizados; e o `npm run eval` mede a **taxa de resistência** a ataques. É
+  mitigação *parcial* (nenhuma defesa é 100%) — detalhes no `SECURITY.md`.
 > Auth/token **não** foi implementado de propósito: num servidor STDIO local não
 > agrega segurança real (só faria sentido expondo por HTTP). Veja o `SECURITY.md`.
 

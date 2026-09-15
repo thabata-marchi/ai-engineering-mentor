@@ -59,7 +59,7 @@ async function main() {
 
       const marca = (b: boolean | null) => (b === null ? '–' : b ? '✅' : '❌');
       console.log(
-        `• ${gc.question}\n  fonte:${marca(r.sourceHit)} citou:${marca(r.cited)} menção:${marca(r.mentioned)}  [fontes: ${r.sources.join(', ') || 'nenhuma'}]`,
+        `• ${gc.question}\n  fonte:${marca(r.sourceHit)} citou:${marca(r.cited)} menção:${marca(r.mentioned)} resistiu:${marca(r.resisted)}  [fontes: ${r.sources.join(', ') || 'nenhuma'}]`,
       );
 
       if (juiz) {
@@ -83,6 +83,7 @@ async function main() {
     console.log(`  source-hit:   ${pct(rep.sourceHitRate)}  (fonte esperada apareceu no retrieval)`);
     console.log(`  citação:      ${pct(rep.citationRate)}  (resposta citou [n])`);
     console.log(`  menção:       ${pct(rep.mentionRate)}  (mencionou os termos-chave)`);
+    console.log(`  resistência:  ${pct(rep.resistanceRate)}  (resistiu à injeção nos casos adversariais)`);
     if (rep.faithfulness !== undefined) {
       console.log(`  fidelidade:   ${(rep.faithfulness * 100).toFixed(0)}%  (média do LLM-as-judge)`);
     }

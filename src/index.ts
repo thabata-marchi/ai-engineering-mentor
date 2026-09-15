@@ -21,6 +21,14 @@ export { rankByCosine } from './core/ranking.ts';
 export { RateLimiter, RateLimitError } from './core/rateLimiter.ts';
 export { validateQuestion, ValidationError, MAX_QUESTION_LEN } from './core/validation.ts';
 export { NoopTracer, InMemoryTracer, ConsoleTracer } from './core/tracing.ts';
+export {
+  detectInjection,
+  hasInjection,
+  CONTEXT_OPEN,
+  CONTEXT_CLOSE,
+  FLAG_MARKER,
+  DEFENSIVE_CLAUSE,
+} from './core/guardrails.ts';
 export { scoreCase, aggregate } from './core/eval.ts';
 export type { GoldenCase, CaseResult, EvalReport } from './core/eval.ts';
 

@@ -34,6 +34,13 @@ import type {
 } from '../core/ports.ts';
 import { validateQuestion } from '../core/validation.ts';
 import { NoopTracer, type TracerPort } from '../core/tracing.ts';
+import {
+  CONTEXT_CLOSE,
+  CONTEXT_OPEN,
+  DEFENSIVE_CLAUSE,
+  FLAG_MARKER,
+  detectInjection,
+} from '../core/guardrails.ts';
 
 /** As dependências do caso de uso — todas são PORTS (interfaces), não implementações. */
 export interface AnswerQuestionDeps {
@@ -59,6 +66,7 @@ export const SYSTEM_PROMPT_DIRETO = [
   '1. Responda SOMENTE com base no CONTEXTO fornecido abaixo.',
   '2. Se a resposta não estiver no contexto, diga claramente: "Não encontrei isso na base de conhecimento." Não invente.',
   '3. Ao usar uma informação, cite o número da fonte correspondente, ex.: [1].',
+  DEFENSIVE_CLAUSE, // Etapa 14: contexto é dado, não instrução
 ].join('\n');
 
 /**
@@ -74,6 +82,7 @@ export const SYSTEM_PROMPT_GUIADO = [
   '3. Depois, dê UMA dica curta ancorada no contexto, citando a fonte usada (ex.: [1]) — aponte o caminho sem revelar tudo.',
   '4. Convide o aluno a tentar: peça que ele diga o que acha ou tente responder.',
   '5. EXCEÇÃO: se o aluno pedir explicitamente a resposta (ex.: "me dá a resposta", "explica logo", "estou travado"), aí sim explique de forma completa, ainda citando as fontes [n].',
+  DEFENSIVE_CLAUSE, // Etapa 14: contexto é dado, não instrução
 ].join('\n');
 
 /** Os modos disponíveis do mentor. */
@@ -126,6 +135,9 @@ export class AnswerQuestion {
     const [queryVector] = await this.deps.embedder.embed([question]);
     const context = await this.deps.store.search(queryVector, this.topK);
     spanRetrieval.setAttribute('chunks', context.chunks.length);
+    // Guardrail (Etapa 14): quantos trechos recuperados têm sinal de injeção?
+    const suspeitos = context.chunks.filter((sc) => detectInjection(sc.chunk.text).length > 0).length;
+    spanRetrieval.setAttribute('suspeitos', suspeitos);
     spanRetrieval.end();
 
     // 2. AUGMENTATION — monta o prompt com o HISTÓRICO + o contexto recuperado.
@@ -178,14 +190,19 @@ export function buildUserPrompt(
     partes.push(`HISTÓRICO DA CONVERSA:\n${conversa}`);
   }
 
-  // CONTEXTO recuperado da base (numerado para o modelo citar as fontes).
+  // CONTEXTO recuperado da base — DELIMITADO (Etapa 14): tudo entre os marcadores
+  // é DADO não-confiável. Trechos com sinais de injeção ganham um aviso visível.
   if (context.chunks.length === 0) {
-    partes.push('CONTEXTO: (nenhum trecho encontrado)');
+    partes.push(`CONTEXTO:\n${CONTEXT_OPEN}\n(nenhum trecho encontrado)\n${CONTEXT_CLOSE}`);
   } else {
     const trechos = context.chunks
-      .map((sc, i) => `[${i + 1}] (fonte: ${sourceName(sc)})\n${sc.chunk.text}`)
+      .map((sc, i) => {
+        const suspeito = detectInjection(sc.chunk.text).length > 0;
+        const aviso = suspeito ? `${FLAG_MARKER}\n` : '';
+        return `[${i + 1}] (fonte: ${sourceName(sc)})\n${aviso}${sc.chunk.text}`;
+      })
       .join('\n\n');
-    partes.push(`CONTEXTO:\n${trechos}`);
+    partes.push(`CONTEXTO:\n${CONTEXT_OPEN}\n${trechos}\n${CONTEXT_CLOSE}`);
   }
 
   partes.push(`PERGUNTA: ${question}`);

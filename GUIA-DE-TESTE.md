@@ -15,7 +15,7 @@ npm install
 
 ## 1. Testes automatizados (prova mais rápida — NÃO precisa de chave)
 ```bash
-npm test          # 74 testes → 73 passam + 1 pulado (Mongo, opt-in)
+npm test          # 80 testes → 79 passam + 1 pulado (Mongo, opt-in)
 npm run typecheck # confere os tipos (tsc --noEmit)
 ```
 Usa dublês (fakes) — não gasta cota nem usa rede. Se os dois passam, o núcleo está saudável.
