@@ -94,6 +94,9 @@ npm test        # roda os testes com o test runner nativo do Node
 
 ## Ver funcionar
 
+> 📋 **Quer um roteiro linear "testar do zero" com solução de problemas?** Veja o
+> [`GUIA-DE-TESTE.md`](./GUIA-DE-TESTE.md). As seções abaixo cobrem cada modo separadamente.
+
 **Demo sem configurar nada** (usa dublês — mostra o fluxo, não "pensa"):
 ```bash
 npm run demo
