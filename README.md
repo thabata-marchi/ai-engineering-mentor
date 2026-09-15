@@ -182,13 +182,21 @@ npm run ask -- "sua pergunta sobre o material"
 
 **Avaliar a qualidade** (Etapa 13 — "responde" ≠ "responde bem"):
 ```bash
-npm run eval                 # roda o dataset dourado e imprime um placar
-EVAL_JUDGE=1 npm run eval     # + LLM-as-judge (mede fidelidade; gasta cota)
-EVAL_TRACE=1 npm run eval     # + trace ao vivo de cada passo (retrieval/generation)
+npm run eval                                   # dataset padrão (pareado com examples/docs)
+DOCS_DIR=./examples/docs npm run eval          # garante a base que casa com o dataset padrão
+npm run eval -- examples/golden.fowler.json    # dataset sob medida p/ a sua base (livro do Fowler)
+EVAL_JUDGE=1 npm run eval                       # + LLM-as-judge (mede fidelidade; gasta cota)
+EVAL_TRACE=1 npm run eval                       # + trace ao vivo de cada passo (retrieval/generation)
 ```
 > Métricas determinísticas (rodam de graça): **source-hit** (a fonte esperada
-> apareceu no retrieval?), **citação** (citou `[n]`?) e **menção** (trouxe os
-> termos-chave?). O dataset fica em `examples/golden.json` — edite/adicione casos.
+> apareceu no retrieval?), **citação** (citou `[n]`?), **menção** (trouxe os
+> termos-chave?) e **resistência** (Etapa 14 — resistiu à injeção?).
+> ⚠️ **O dataset precisa casar com a base** (`DOCS_DIR`): as `expectedSources` são os
+> nomes dos arquivos indexados. Dataset e base descasados → **source-hit 0%** (não é
+> falha de retrieval, é comparação errada). O `golden.json` pareia com `examples/docs`;
+> passe seu próprio dataset como argumento (`npm run eval -- caminho.json`) pra medir a sua base.
+> Com **base de fonte única** (ex.: um só livro), source-hit tende a 100% e o sinal forte
+> passa a ser **menção/citação/fidelidade**.
 
 ## Segurança (Etapa 12)
 Hardening proporcional ao contexto (roda **local via STDIO**, sem rede):

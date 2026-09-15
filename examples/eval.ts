@@ -16,6 +16,7 @@
 // ============================================================================
 
 import { readFile } from 'node:fs/promises';
+import { isAbsolute, resolve } from 'node:path';
 
 import { AnswerQuestion } from '../src/application/answerQuestion.ts';
 import { LLMJudge } from '../src/adapters/llmJudge.ts';
@@ -30,8 +31,18 @@ async function main() {
     process.exit(1);
   }
 
-  const datasetPath = new URL('./golden.json', import.meta.url).pathname;
+  // Dataset: aceita um caminho como argumento (ex.: `npm run eval -- examples/golden.fowler.json`).
+  // Sem argumento, usa o golden.json padrão (pareado com examples/docs).
+  // ⚠️ O dataset PRECISA casar com a base (DOCS_DIR): as `expectedSources` são os
+  // nomes dos arquivos indexados. Dataset e base descasados → source-hit 0%.
+  const arg = process.argv.slice(2)[0];
+  const datasetPath = arg
+    ? isAbsolute(arg)
+      ? arg
+      : resolve(process.cwd(), arg)
+    : new URL('./golden.json', import.meta.url).pathname;
   const cases = JSON.parse(await readFile(datasetPath, 'utf8')) as GoldenCase[];
+  console.error(`📁 Dataset: ${datasetPath}`);
 
   const mentor = await setupMentor(apiKey);
   const useCase = new AnswerQuestion({
