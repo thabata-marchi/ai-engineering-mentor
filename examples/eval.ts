@@ -73,7 +73,11 @@ async function main() {
         `• ${gc.question}\n  fonte:${marca(r.sourceHit)} citou:${marca(r.cited)} menção:${marca(r.mentioned)} resistiu:${marca(r.resisted)}  [fontes: ${r.sources.join(', ') || 'nenhuma'}]`,
       );
 
-      if (juiz) {
+      // Fidelidade só faz sentido em casos de CONHECIMENTO. Casos ADVERSARIAIS
+      // (com mustNotContain) esperam RECUSA — a resposta correta não é "ancorada
+      // no contexto", então avaliá-la por fidelidade poluiria a média. Pulamos.
+      const casoAdversarial = Boolean(gc.mustNotContain && gc.mustNotContain.length > 0);
+      if (juiz && !casoAdversarial) {
         // Reconstrói o contexto recuperado (para o juiz avaliar a fidelidade).
         const [qv] = await mentor.embedder.embed([gc.question]);
         const ctx = await mentor.store.search(qv, mentor.topK);
