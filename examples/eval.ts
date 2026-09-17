@@ -70,6 +70,10 @@ async function main() {
   // sobre tudo — ou seja, a média entre rodadas sai naturalmente.
   const results: CaseResult[] = [];
   const notasJuiz: number[] = [];
+  // Robustez: uma chamada que falha (ex.: 429 de cota) NÃO derruba a avaliação.
+  // Contamos as falhas e seguimos; as métricas saem sobre o que rodou.
+  let errosGeracao = 0;
+  let errosJuiz = 0;
 
   // Conta "k/n" de uma métrica booleana num conjunto de rodadas (ignora null).
   const conta = (rs: CaseResult[], get: (r: CaseResult) => boolean | null): string => {
@@ -94,27 +98,45 @@ async function main() {
       const rodadasCaso: CaseResult[] = [];
       const notasCaso: number[] = [];
       for (let i = 0; i < runs; i++) {
-        const answer = await useCase.execute(gc.question);
+        let answer;
+        try {
+          answer = await useCase.execute(gc.question);
+        } catch (err) {
+          errosGeracao++;
+          console.log(`  ⚠️ rodada ${i + 1}/${runs} falhou: ${curto(err)}`);
+          continue; // não derruba o resto — segue para a próxima rodada/caso
+        }
         const r = scoreCase(gc, answer);
         rodadasCaso.push(r);
         results.push(r);
         if (juiz && !casoAdversarial) {
-          const nota = await juiz.faithfulness(gc.question, answer.text, contexto);
-          notasCaso.push(nota);
-          notasJuiz.push(nota);
+          try {
+            const nota = await juiz.faithfulness(gc.question, answer.text, contexto);
+            notasCaso.push(nota);
+            notasJuiz.push(nota);
+          } catch (err) {
+            errosJuiz++;
+            console.log(`  ⚠️ juiz falhou na rodada ${i + 1}: ${curto(err)}`);
+          }
         }
       }
 
       // Linha-resumo do caso. Com 1 rodada, usa ✅/❌; com N, mostra "k/n".
+      if (rodadasCaso.length === 0) {
+        console.log(`• ${gc.question}\n  ⚠️ nenhuma rodada concluída (todas falharam)`);
+        continue;
+      }
       const marca = (b: boolean | null) => (b === null ? '–' : b ? '✅' : '❌');
       const cel = (get: (r: CaseResult) => boolean | null) =>
-        runs === 1 ? marca(get(rodadasCaso[0])) : conta(rodadasCaso, get);
+        rodadasCaso.length === 1 ? marca(get(rodadasCaso[0])) : conta(rodadasCaso, get);
       console.log(
         `• ${gc.question}\n  fonte:${cel((r) => r.sourceHit)} citou:${cel((r) => r.cited)} menção:${cel((r) => r.mentioned)} resistiu:${cel((r) => r.resisted)}`,
       );
       if (notasCaso.length > 0) {
         const media = notasCaso.reduce((a, b) => a + b, 0) / notasCaso.length;
-        console.log(`  fidelidade (juiz): ${media.toFixed(2)}${runs > 1 ? ` (média de ${runs})` : ''}`);
+        console.log(
+          `  fidelidade (juiz): ${media.toFixed(2)}${notasCaso.length > 1 ? ` (média de ${notasCaso.length})` : ''}`,
+        );
       }
     }
 
@@ -125,7 +147,7 @@ async function main() {
     const pct = (x: number | null) => (x === null ? 'n/a' : `${(x * 100).toFixed(0)}%`);
     console.log('\n📊 Placar:');
     console.log(
-      `  casos:        ${cases.length}${runs > 1 ? ` × ${runs} rodadas = ${rep.total} execuções` : ''}`,
+      `  casos:        ${cases.length}${runs > 1 ? ` × ${runs} rodadas` : ''} — ${rep.total} execuç${rep.total === 1 ? 'ão' : 'ões'} concluída(s)`,
     );
     console.log(`  source-hit:   ${pct(rep.sourceHitRate)}  (fonte esperada apareceu no retrieval)`);
     console.log(`  citação:      ${pct(rep.citationRate)}  (resposta citou [n])`);
@@ -134,9 +156,21 @@ async function main() {
     if (rep.faithfulness !== undefined) {
       console.log(`  fidelidade:   ${(rep.faithfulness * 100).toFixed(0)}%  (média do LLM-as-judge)`);
     }
+    if (errosGeracao > 0 || errosJuiz > 0) {
+      console.log(
+        `  ⚠️ falhas:    ${errosGeracao} geração${juiz ? ` + ${errosJuiz} juiz` : ''} ` +
+          `(ex.: 429/cota). As métricas acima refletem só as execuções que concluíram.`,
+      );
+    }
   } finally {
     await mentor.cleanup();
   }
+}
+
+/** Mensagem de erro curta (1 linha) para o log — evita despejar o JSON inteiro. */
+function curto(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.length > 140 ? msg.slice(0, 140) + '…' : msg;
 }
 
 main()
