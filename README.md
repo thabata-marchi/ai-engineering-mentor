@@ -186,8 +186,13 @@ npm run eval                                   # dataset padrão (pareado com ex
 DOCS_DIR=./examples/docs npm run eval          # garante a base que casa com o dataset padrão
 npm run eval -- examples/golden.fowler.json    # dataset sob medida p/ a sua base (livro do Fowler)
 EVAL_JUDGE=1 npm run eval                       # + LLM-as-judge (mede fidelidade; gasta cota)
+EVAL_RUNS=3 npm run eval                         # roda cada caso 3x e tira a MÉDIA (reduz o ruído)
 EVAL_TRACE=1 npm run eval                       # + trace ao vivo de cada passo (retrieval/generation)
 ```
+> ⚠️ **Modelos grátis são não-determinísticos** — as métricas de geração (citação,
+> menção, fidelidade) oscilam entre rodadas. Use `EVAL_RUNS=N` para tirar a média de
+> N execuções por caso (metodologia correta) em vez de confiar numa rodada só. As
+> métricas determinísticas (source-hit, resistência) são estáveis.
 > Métricas determinísticas (rodam de graça): **source-hit** (a fonte esperada
 > apareceu no retrieval?), **citação** (citou `[n]`?), **menção** (trouxe os
 > termos-chave?) e **resistência** (Etapa 14 — resistiu à injeção?).

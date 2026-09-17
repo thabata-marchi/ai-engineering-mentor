@@ -57,34 +57,64 @@ async function main() {
   const usarJuiz = process.env.EVAL_JUDGE === '1';
   const juiz = usarJuiz ? new LLMJudge(mentor.llm) : undefined;
 
-  console.error(`🧪 Avaliando ${cases.length} caso(s)${usarJuiz ? ' (com LLM-as-judge)' : ''}...\n`);
+  // EVAL_RUNS: quantas vezes rodar CADA caso, para MÉDIA (reduz o ruído do modelo
+  // grátis — uma rodada só não é confiável). Padrão: 1.
+  const runs = Math.max(1, Math.floor(Number(process.env.EVAL_RUNS ?? '1')) || 1);
 
+  console.error(
+    `🧪 Avaliando ${cases.length} caso(s)${usarJuiz ? ' (com LLM-as-judge)' : ''}` +
+      `${runs > 1 ? ` — ${runs} rodadas por caso (média)` : ''}...\n`,
+  );
+
+  // Coletamos TODAS as execuções num só array; o aggregate() calcula as taxas
+  // sobre tudo — ou seja, a média entre rodadas sai naturalmente.
   const results: CaseResult[] = [];
   const notasJuiz: number[] = [];
 
+  // Conta "k/n" de uma métrica booleana num conjunto de rodadas (ignora null).
+  const conta = (rs: CaseResult[], get: (r: CaseResult) => boolean | null): string => {
+    const aplic = rs.filter((r) => get(r) !== null);
+    if (aplic.length === 0) return '–';
+    return `${aplic.filter((r) => get(r) === true).length}/${aplic.length}`;
+  };
+
   try {
     for (const gc of cases) {
-      const answer = await useCase.execute(gc.question);
-      const r = scoreCase(gc, answer);
-      results.push(r);
-
-      const marca = (b: boolean | null) => (b === null ? '–' : b ? '✅' : '❌');
-      console.log(
-        `• ${gc.question}\n  fonte:${marca(r.sourceHit)} citou:${marca(r.cited)} menção:${marca(r.mentioned)} resistiu:${marca(r.resisted)}  [fontes: ${r.sources.join(', ') || 'nenhuma'}]`,
-      );
-
-      // Fidelidade só faz sentido em casos de CONHECIMENTO. Casos ADVERSARIAIS
-      // (com mustNotContain) esperam RECUSA — a resposta correta não é "ancorada
-      // no contexto", então avaliá-la por fidelidade poluiria a média. Pulamos.
       const casoAdversarial = Boolean(gc.mustNotContain && gc.mustNotContain.length > 0);
+
+      // O contexto para o juiz é o mesmo em todas as rodadas (retrieval é
+      // determinístico p/ a mesma pergunta) → calculamos UMA vez.
+      let contexto = '';
       if (juiz && !casoAdversarial) {
-        // Reconstrói o contexto recuperado (para o juiz avaliar a fidelidade).
         const [qv] = await mentor.embedder.embed([gc.question]);
         const ctx = await mentor.store.search(qv, mentor.topK);
-        const contexto = ctx.chunks.map((c) => c.chunk.text).join('\n\n');
-        const nota = await juiz.faithfulness(gc.question, answer.text, contexto);
-        notasJuiz.push(nota);
-        console.log(`  fidelidade (juiz): ${nota.toFixed(2)}`);
+        contexto = ctx.chunks.map((c) => c.chunk.text).join('\n\n');
+      }
+
+      const rodadasCaso: CaseResult[] = [];
+      const notasCaso: number[] = [];
+      for (let i = 0; i < runs; i++) {
+        const answer = await useCase.execute(gc.question);
+        const r = scoreCase(gc, answer);
+        rodadasCaso.push(r);
+        results.push(r);
+        if (juiz && !casoAdversarial) {
+          const nota = await juiz.faithfulness(gc.question, answer.text, contexto);
+          notasCaso.push(nota);
+          notasJuiz.push(nota);
+        }
+      }
+
+      // Linha-resumo do caso. Com 1 rodada, usa ✅/❌; com N, mostra "k/n".
+      const marca = (b: boolean | null) => (b === null ? '–' : b ? '✅' : '❌');
+      const cel = (get: (r: CaseResult) => boolean | null) =>
+        runs === 1 ? marca(get(rodadasCaso[0])) : conta(rodadasCaso, get);
+      console.log(
+        `• ${gc.question}\n  fonte:${cel((r) => r.sourceHit)} citou:${cel((r) => r.cited)} menção:${cel((r) => r.mentioned)} resistiu:${cel((r) => r.resisted)}`,
+      );
+      if (notasCaso.length > 0) {
+        const media = notasCaso.reduce((a, b) => a + b, 0) / notasCaso.length;
+        console.log(`  fidelidade (juiz): ${media.toFixed(2)}${runs > 1 ? ` (média de ${runs})` : ''}`);
       }
     }
 
@@ -94,7 +124,9 @@ async function main() {
 
     const pct = (x: number | null) => (x === null ? 'n/a' : `${(x * 100).toFixed(0)}%`);
     console.log('\n📊 Placar:');
-    console.log(`  casos:        ${rep.total}`);
+    console.log(
+      `  casos:        ${cases.length}${runs > 1 ? ` × ${runs} rodadas = ${rep.total} execuções` : ''}`,
+    );
     console.log(`  source-hit:   ${pct(rep.sourceHitRate)}  (fonte esperada apareceu no retrieval)`);
     console.log(`  citação:      ${pct(rep.citationRate)}  (resposta citou [n])`);
     console.log(`  menção:       ${pct(rep.mentionRate)}  (mencionou os termos-chave)`);
