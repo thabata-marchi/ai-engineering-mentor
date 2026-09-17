@@ -1,0 +1,45 @@
+# ============================================================================
+#  CI — roda tipos + testes a cada push/PR (GitHub Actions)
+# ============================================================================
+#  Quando este arquivo está no repositório, o GitHub roda automaticamente a cada
+#  push na main e a cada Pull Request. O resultado (verde/vermelho) alimenta o
+#  badge de "tests" do README. Assim o badge é REAL e automático — não um número
+#  escrito à mão.
+# ============================================================================
+
+name: CI
+
+# Dispara em push na main e em qualquer Pull Request.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: typecheck + tests (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # se uma versão falhar, a outra ainda roda (mais info)
+      matrix:
+        node: ['22', '24'] # 22.6+ roda TS nativo; 24 valida a versão mais nova
+    steps:
+      # 1. Baixa o código do repositório para a máquina do CI.
+      - uses: actions/checkout@v4
+
+      # 2. Instala o Node da matriz (>= 22.6, que roda TypeScript nativo). O cache
+      #    do npm acelera execuções futuras.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: 'npm'
+
+      # 3. Instala EXATAMENTE o que está no package-lock (reprodutível).
+      - run: npm ci
+
+      # 4. Checa os tipos (não gera build — só valida).
+      - run: npm run typecheck
+
+      # 5. Roda a suíte de testes (node:test). O teste de Mongo fica pulado
+      #    porque não definimos MONGO_TEST_URL aqui — não precisa de banco no CI.
+      - run: npm test

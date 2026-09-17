@@ -65,6 +65,7 @@ completa) e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
 - [x] **Etapa 12 — Segurança + publicação**: rate limiting (janela deslizante, protege a cota), validação/limites de entrada, guard de segredos + `SECURITY.md` (modelo de ameaças), e pacote pronto pra npm (`files`, `exports`, `prepublishOnly`, `CONTRIBUTING.md`, `PUBLISHING.md`).
 - [x] **Etapa 13 — Observabilidade + avaliação**: `TracerPort` (spans locais: retrieval/generation) + harness de avaliação (`npm run eval`) com dataset dourado e métricas (source-hit, citação, menção) — e **LLM-as-judge** opcional pra medir fidelidade.
 - [x] **Etapa 14 — Guardrails (prompt injection)**: `guardrails.ts` — contexto delimitado como dado não-confiável + cláusula defensiva nos prompts + detecção/sinalização de trechos suspeitos (`detectInjection`); casos adversariais no eval medem a **taxa de resistência**.
+- [x] **Etapa 15 — Distribuição npx**: build `tsc → dist/` (JS puro, `rewriteRelativeImportExtensions` mantém o TS nativo em dev) + `bin` (`ai-engineering-mentor-mcp`) — dá pra rodar o servidor MCP via `npx`, sem clonar (traga seus próprios docs via `DOCS_DIR`).
 
 ## Estrutura
 ```
@@ -136,6 +137,25 @@ para o **node direto** (não use `npm run` aqui — o banner do npm suja o STDIO
 npx @modelcontextprotocol/inspector node --dns-result-order=ipv4first \
   --env-file-if-exists=.env --experimental-strip-types examples/mcp.ts
 ```
+
+**Usar via `npx`, sem clonar** (Etapa 15 — depois de publicado no npm):
+```json
+{
+  "mcpServers": {
+    "ai-engineering-mentor": {
+      "command": "npx",
+      "args": ["-y", "ai-engineering-mentor-mcp"],
+      "env": { "OPENROUTER_API_KEY": "sk-or-...", "DOCS_DIR": "/caminho/para/seus/docs" }
+    }
+  }
+}
+```
+> É um McpServer **plug-and-play**: o `npx` baixa e roda o `bin` compilado (JS puro,
+> sem precisar de flags nem clonar o repo). Como a base de conhecimento **não** vem
+> incluída (direitos autorais), **você traz a sua** apontando `DOCS_DIR` para uma
+> pasta com seus PDFs/`.md`/`.txt`. Pense nele como um *template* de mentor RAG que
+> roda sobre os **seus** materiais. Para desenvolver localmente, gere o build com
+> `npm run build` (compila `src` + o entry MCP para `dist/`).
 
 **Usar como agente autônomo** (Etapa 11 — ele decide quais tools chamar):
 ```bash

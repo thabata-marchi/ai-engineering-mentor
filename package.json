@@ -3,16 +3,18 @@
   "version": "0.1.0",
   "description": "Mentor de programação com IA (RAG socrático + MCP + agente) — laboratório de estudo em TypeScript, arquitetura hexagonal",
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./dist/src/index.js",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./dist/src/index.js"
+  },
+  "bin": {
+    "ai-engineering-mentor-mcp": "./dist/examples/mcp.js"
   },
   "engines": {
     "node": ">=22.6.0"
   },
   "files": [
-    "src/",
-    "examples/",
+    "dist/",
     "README.md",
     "LICENSE",
     "SECURITY.md",
@@ -22,13 +24,14 @@
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "test:watch": "node --experimental-strip-types --test --watch tests/*.test.ts",
     "typecheck": "tsc --noEmit",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "demo": "node --experimental-strip-types examples/demo.ts",
     "ask": "node --dns-result-order=ipv4first --env-file-if-exists=.env --experimental-strip-types examples/ask.ts",
     "chat": "node --dns-result-order=ipv4first --env-file-if-exists=.env --experimental-strip-types examples/chat.ts",
     "mcp": "node --dns-result-order=ipv4first --env-file-if-exists=.env --experimental-strip-types examples/mcp.ts",
     "agent": "node --dns-result-order=ipv4first --env-file-if-exists=.env --experimental-strip-types examples/agent.ts",
     "eval": "node --dns-result-order=ipv4first --env-file-if-exists=.env --experimental-strip-types examples/eval.ts",
-    "prepublishOnly": "npm run typecheck && npm test"
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "keywords": [
     "rag",
@@ -61,6 +64,6 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
-    "typescript": "^5.6.0"
+    "typescript": "^5.7.0"
   }
 }

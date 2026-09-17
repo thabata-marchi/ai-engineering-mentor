@@ -1,0 +1,16 @@
+{
+  "//": "Config de BUILD (Etapa 15): compila TS → JS puro em dist/ para publicar no npm.",
+  "//1": "O tsconfig.json base é só p/ checagem de tipos (noEmit). Aqui a gente EMITE.",
+  "//2": "rewriteRelativeImportExtensions reescreve os imports './x.ts' → './x.js' na SAÍDA,",
+  "//3": "permitindo manter as extensões .ts no código-fonte (necessárias p/ rodar TS nativo).",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": ".",
+    "outDir": "./dist",
+    "target": "es2022",
+    "declaration": false,
+    "rewriteRelativeImportExtensions": true
+  },
+  "include": ["src", "examples/mcp.ts"]
+}

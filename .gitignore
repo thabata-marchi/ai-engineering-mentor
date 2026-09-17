@@ -19,6 +19,9 @@ __pycache__/
 .idea/
 .DS_Store
 
+# build (JS compilado p/ npm — reconstruível com `npm run build`; não versionar)
+dist/
+
 # dados gerados (o índice de vetores é reconstruível — não versionar)
 data/vectorstore/
 
