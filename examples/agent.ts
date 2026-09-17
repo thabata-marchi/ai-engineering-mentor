@@ -24,20 +24,12 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { AnswerQuestion } from '../src/application/answerQuestion.ts';
 import { MentorAgent } from '../src/application/mentorAgent.ts';
 import { McpAgentTools } from '../src/adapters/mcpAgentTools.ts';
-import { OpenRouterChatLLM } from '../src/adapters/openRouterChatLLM.ts';
+import { createChatLLMFromEnv } from '../src/adapters/llmFactory.ts';
 import { RateLimitedChatLLM } from '../src/adapters/rateLimitedLLM.ts';
 import { createMentorMcpServer } from '../src/mcp/mentorServer.ts';
 import { setupMentor } from './setup.ts';
 
 async function main() {
-  // ⚠️ O AGENTE (tool-calling) roda sobre o OpenRouter — precisa de OPENROUTER_API_KEY
-  // especificamente. O RAG/MCP dentro do setup usa o provedor de LLM_PROVIDER.
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    console.error('❌ O agente requer OPENROUTER_API_KEY (tool-calling). Crie em https://openrouter.ai/keys');
-    process.exit(1);
-  }
-
   const objetivo = process.argv.slice(2).join(' ').trim();
   if (!objetivo) {
     console.error('Uso: npm run agent -- "seu objetivo de estudo"');
@@ -62,14 +54,15 @@ async function main() {
   const client = new Client({ name: 'mentor-agent', version: '0.1.0' });
   await Promise.all([server.connect(serverT), client.connect(clientT)]);
 
-  // 3. O agente: cérebro = LLM com tool-calling; mãos = as tools do MCP.
+  // 3. O agente: cérebro = LLM com tool-calling (multi-provedor, Etapa 17); mãos =
+  //    as tools do MCP. O provedor vem de LLM_PROVIDER — o mesmo do RAG.
+  //    ⚠️ o modelo escolhido PRECISA suportar tool-calling.
   const timeoutMs = process.env.LLM_TIMEOUT_MS ? Number(process.env.LLM_TIMEOUT_MS) : 120_000;
+  const { llm: rawChat, provider, model } = createChatLLMFromEnv(timeoutMs);
+  console.error(`🧠 Agente usando: ${provider} | ${model}`);
   // Mesmo RateLimiter do setup: o agente pode chamar o LLM várias vezes no loop,
   // então o rate limit é ainda mais importante aqui (protege a cota).
-  const chatLLM = new RateLimitedChatLLM(
-    new OpenRouterChatLLM({ apiKey, model: process.env.OPENROUTER_MODEL, timeoutMs }),
-    mentor.limiter,
-  );
+  const chatLLM = new RateLimitedChatLLM(rawChat, mentor.limiter);
   const agent = new MentorAgent({ llm: chatLLM, tools: new McpAgentTools(client) });
 
   console.error(`🎯 Objetivo: ${objetivo}\n🤖 Agente pensando (pode chamar tools várias vezes)...\n`);

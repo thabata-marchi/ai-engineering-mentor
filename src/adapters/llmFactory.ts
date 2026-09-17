@@ -16,10 +16,13 @@
 //  é a casca fininha que lê as variáveis de ambiente e valida a chave.
 // ============================================================================
 
-import type { LLMPort } from '../core/ports.ts';
+import type { LLMPort, ToolCallingLLMPort } from '../core/ports.ts';
 import { OpenRouterLLM } from './openRouterLLM.ts';
 import { OpenAICompatibleLLM } from './openAICompatibleLLM.ts';
 import { AnthropicLLM } from './anthropicLLM.ts';
+import { OpenRouterChatLLM } from './openRouterChatLLM.ts';
+import { OpenAICompatibleChatLLM } from './openAICompatibleChatLLM.ts';
+import { AnthropicChatLLM } from './anthropicChatLLM.ts';
 
 export type LLMProvider = 'openrouter' | 'openai' | 'anthropic' | 'gemini';
 
@@ -43,7 +46,7 @@ const DEFAULT_MODEL: Record<LLMProvider, string> = {
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 
-/** Cria o adapter de LLM certo para o provedor. Puro (sem ler env). */
+/** Cria o adapter de LLM (generate) certo para o provedor. Puro (sem ler env). */
 export function createLLM(cfg: LLMFactoryConfig): LLMPort {
   const model = cfg.model || DEFAULT_MODEL[cfg.provider];
   const timeoutMs = cfg.timeoutMs;
@@ -70,6 +73,33 @@ export function createLLM(cfg: LLMFactoryConfig): LLMPort {
   }
 }
 
+/**
+ * Cria o adapter de TOOL-CALLING (chat) certo para o provedor (Etapa 17) — usado
+ * pelo agente. Puro (sem ler env). ⚠️ O modelo precisa suportar tool-calling.
+ */
+export function createChatLLM(cfg: LLMFactoryConfig): ToolCallingLLMPort {
+  const model = cfg.model || DEFAULT_MODEL[cfg.provider];
+  const { timeoutMs, retries } = cfg;
+  switch (cfg.provider) {
+    case 'openrouter':
+      return new OpenRouterChatLLM({ apiKey: cfg.apiKey, model, timeoutMs, retries });
+    case 'openai':
+      return new OpenAICompatibleChatLLM({
+        apiKey: cfg.apiKey, model, baseUrl: OPENAI_URL, providerName: 'OpenAI', timeoutMs, retries,
+      });
+    case 'gemini':
+      return new OpenAICompatibleChatLLM({
+        apiKey: cfg.apiKey, model, baseUrl: GEMINI_URL, providerName: 'Gemini', timeoutMs, retries,
+      });
+    case 'anthropic':
+      return new AnthropicChatLLM({ apiKey: cfg.apiKey, model, timeoutMs, retries });
+    default: {
+      const _never: never = cfg.provider;
+      throw new Error(`Provedor de LLM desconhecido: ${String(_never)}`);
+    }
+  }
+}
+
 /** Qual variável de ambiente guarda a chave de cada provedor. */
 const KEY_ENV: Record<LLMProvider, string> = {
   openrouter: 'OPENROUTER_API_KEY',
@@ -86,10 +116,10 @@ const PROVIDER_KEYS_URL: Record<LLMProvider, string> = {
 };
 
 /**
- * Lê LLM_PROVIDER + a chave/modelo do ambiente e devolve o LLM pronto.
- * Valida a chave (guard de segredo) com mensagem clara apontando a env certa.
+ * Lê LLM_PROVIDER + a chave/modelo do ambiente e VALIDA a chave (guard de segredo)
+ * com mensagem clara apontando a env certa. Compartilhado pelos dois factories.
  */
-export function createLLMFromEnv(timeoutMs?: number): { llm: LLMPort; provider: LLMProvider; model: string } {
+export function resolveProviderFromEnv(): { provider: LLMProvider; apiKey: string; model?: string } {
   const provider = (process.env.LLM_PROVIDER ?? 'openrouter') as LLMProvider;
   if (!(provider in KEY_ENV)) {
     throw new Error(
@@ -107,6 +137,23 @@ export function createLLMFromEnv(timeoutMs?: number): { llm: LLMPort; provider: 
   // LLM_MODEL é genérico; p/ compatibilidade, OPENROUTER_MODEL ainda vale no openrouter.
   const model =
     process.env.LLM_MODEL ?? (provider === 'openrouter' ? process.env.OPENROUTER_MODEL : undefined);
+  return { provider, apiKey, model };
+}
+
+/** Lê o env e devolve o LLM (generate) pronto. */
+export function createLLMFromEnv(timeoutMs?: number): { llm: LLMPort; provider: LLMProvider; model: string } {
+  const { provider, apiKey, model } = resolveProviderFromEnv();
   const llm = createLLM({ provider, apiKey, model, timeoutMs });
+  return { llm, provider, model: model || DEFAULT_MODEL[provider] };
+}
+
+/** Lê o env e devolve o LLM de TOOL-CALLING (chat) pronto — usado pelo agente (Etapa 17). */
+export function createChatLLMFromEnv(timeoutMs?: number): {
+  llm: ToolCallingLLMPort;
+  provider: LLMProvider;
+  model: string;
+} {
+  const { provider, apiKey, model } = resolveProviderFromEnv();
+  const llm = createChatLLM({ provider, apiKey, model, timeoutMs });
   return { llm, provider, model: model || DEFAULT_MODEL[provider] };
 }

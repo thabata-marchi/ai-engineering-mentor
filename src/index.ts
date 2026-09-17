@@ -52,7 +52,15 @@ export { OpenRouterLLM } from './adapters/openRouterLLM.ts';
 export { OpenRouterChatLLM } from './adapters/openRouterChatLLM.ts';
 export { OpenAICompatibleLLM } from './adapters/openAICompatibleLLM.ts';
 export { AnthropicLLM } from './adapters/anthropicLLM.ts';
-export { createLLM, createLLMFromEnv } from './adapters/llmFactory.ts';
+export { OpenAICompatibleChatLLM } from './adapters/openAICompatibleChatLLM.ts';
+export { AnthropicChatLLM } from './adapters/anthropicChatLLM.ts';
+export {
+  createLLM,
+  createLLMFromEnv,
+  createChatLLM,
+  createChatLLMFromEnv,
+  resolveProviderFromEnv,
+} from './adapters/llmFactory.ts';
 export type { LLMProvider, LLMFactoryConfig } from './adapters/llmFactory.ts';
 export { RateLimitedLLM, RateLimitedChatLLM } from './adapters/rateLimitedLLM.ts';
 export { McpAgentTools } from './adapters/mcpAgentTools.ts';

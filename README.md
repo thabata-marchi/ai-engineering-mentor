@@ -66,7 +66,8 @@ completa) e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
 - [x] **Etapa 13 — Observabilidade + avaliação**: `TracerPort` (spans locais: retrieval/generation) + harness de avaliação (`npm run eval`) com dataset dourado e métricas (source-hit, citação, menção) — e **LLM-as-judge** opcional pra medir fidelidade.
 - [x] **Etapa 14 — Guardrails (prompt injection)**: `guardrails.ts` — contexto delimitado como dado não-confiável + cláusula defensiva nos prompts + detecção/sinalização de trechos suspeitos (`detectInjection`); casos adversariais no eval medem a **taxa de resistência**.
 - [x] **Etapa 15 — Distribuição npx**: build `tsc → dist/` (JS puro, `rewriteRelativeImportExtensions` mantém o TS nativo em dev) + `bin` (`ai-engineering-mentor-mcp`) — dá pra rodar o servidor MCP via `npx`, sem clonar (traga seus próprios docs via `DOCS_DIR`).
-- [x] **Etapa 16 — Multi-provedor**: escolha o provedor de LLM (`LLM_PROVIDER=openrouter|openai|anthropic|gemini`) e use a **sua** chave — adapters `OpenAICompatibleLLM` (OpenAI/Gemini) e `AnthropicLLM` atrás do mesmo `LLMPort`, selecionados por uma factory. (O agente/tool-calling segue no OpenRouter por ora.)
+- [x] **Etapa 16 — Multi-provedor**: escolha o provedor de LLM (`LLM_PROVIDER=openrouter|openai|anthropic|gemini`) e use a **sua** chave — adapters `OpenAICompatibleLLM` (OpenAI/Gemini) e `AnthropicLLM` atrás do mesmo `LLMPort`, selecionados por uma factory.
+- [x] **Etapa 17 — Tool-calling multi-provedor**: o **agente** também respeita o `LLM_PROVIDER` — `OpenAICompatibleChatLLM` (OpenAI/Gemini) e `AnthropicChatLLM` (tool-use nativo) atrás do `ToolCallingLLMPort`, via `createChatLLM`. (Requer um modelo que suporte tool-calling.)
 
 ## Estrutura
 ```
@@ -182,10 +183,11 @@ npm run agent -- "me ajude a entender o Extrair Função"
 > usa as tools `perguntar`/`meu_progresso` num loop ReAct até responder — mostrando
 > o passo a passo real (rastreabilidade). Diferente do `ask`/`chat` (onde NÓS
 > definimos o fluxo), aqui **o modelo decide** as ações.
-> ⚠️ Precisa de um modelo com **tool-calling** confiável — nem todo `:free` tem.
-> Fixe um em `OPENROUTER_MODEL` (procure "Tools" em https://openrouter.ai/models).
-> Se o modelo ignorar as tools, o agente responde direto (sem passos) — o
-> comportamento fica **visível**, não falha em silêncio.
+> ⚠️ Precisa de um modelo com **tool-calling** confiável. O agente usa o provedor
+> de `LLM_PROVIDER` (Etapa 17) — funciona com OpenAI, Gemini, Claude ou OpenRouter;
+> escolha um modelo que suporte tools em `LLM_MODEL` (no OpenRouter, procure "Tools"
+> em https://openrouter.ai/models). Se o modelo ignorar as tools, o agente responde
+> direto (sem passos) — o comportamento fica **visível**, não falha em silêncio.
 
 **Usar MongoDB como vector store** (Etapa 7 — persiste os vetores num banco real):
 ```bash
