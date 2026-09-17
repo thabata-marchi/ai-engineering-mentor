@@ -23,6 +23,14 @@ test('scoreCase: fonte esperada presente + citação + menção → tudo verdade
   assert.equal(r.mentioned, true);
 });
 
+test('scoreCase: source-hit casa mesmo com acentos em NFD vs NFC (macOS)', () => {
+  // A resposta traz a fonte em NFD (como o readdir do macOS devolve)...
+  const fonteNFD = 'Refatoração.pdf'.normalize('NFD');
+  // ...e o dataset foi escrito em NFC. Sem normalizar, includes() falharia.
+  const gc: GoldenCase = { question: 'x', expectedSources: ['Refatoração.pdf'.normalize('NFC')] };
+  assert.equal(scoreCase(gc, answer('resposta', [fonteNFD])).sourceHit, true);
+});
+
 test('scoreCase: fonte esperada ausente e sem citação', () => {
   const gc: GoldenCase = { question: 'x', expectedSources: ['srp.md'] };
   const r = scoreCase(gc, answer('sem citar nada', ['outro.md']));

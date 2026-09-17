@@ -50,14 +50,25 @@ export interface EvalReport {
   readonly cases: CaseResult[];
 }
 
+/**
+ * Normaliza um nome de fonte para comparação robusta. Corrige o "pega-ratão" do
+ * macOS: nomes de arquivo com acentos vêm em Unicode NFD (decompostos: c + ~ + a),
+ * mas datasets escritos à mão costumam estar em NFC (compostos). Visualmente
+ * idênticos, bytes diferentes → `includes()` falharia. Normalizamos os DOIS lados.
+ */
+function normSource(s: string): string {
+  return s.normalize('NFC').trim();
+}
+
 /** Avalia UM caso comparando a resposta obtida com as expectativas. Função pura. */
 export function scoreCase(gc: GoldenCase, answer: Answer): CaseResult {
   const fontes = answer.sources.map((s) => s.source);
   const texto = answer.text.toLowerCase();
 
+  const fontesNorm = fontes.map(normSource);
   const sourceHit =
     gc.expectedSources && gc.expectedSources.length > 0
-      ? gc.expectedSources.some((esperada) => fontes.includes(esperada))
+      ? gc.expectedSources.some((esperada) => fontesNorm.includes(normSource(esperada)))
       : null;
 
   const cited = /\[\d+\]/.test(answer.text); // citou algo no formato [1], [2]...
