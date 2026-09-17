@@ -66,6 +66,7 @@ completa) e `GUIA-ETAPA-1.md` (passo a passo da Etapa 1).
 - [x] **Etapa 13 — Observabilidade + avaliação**: `TracerPort` (spans locais: retrieval/generation) + harness de avaliação (`npm run eval`) com dataset dourado e métricas (source-hit, citação, menção) — e **LLM-as-judge** opcional pra medir fidelidade.
 - [x] **Etapa 14 — Guardrails (prompt injection)**: `guardrails.ts` — contexto delimitado como dado não-confiável + cláusula defensiva nos prompts + detecção/sinalização de trechos suspeitos (`detectInjection`); casos adversariais no eval medem a **taxa de resistência**.
 - [x] **Etapa 15 — Distribuição npx**: build `tsc → dist/` (JS puro, `rewriteRelativeImportExtensions` mantém o TS nativo em dev) + `bin` (`ai-engineering-mentor-mcp`) — dá pra rodar o servidor MCP via `npx`, sem clonar (traga seus próprios docs via `DOCS_DIR`).
+- [x] **Etapa 16 — Multi-provedor**: escolha o provedor de LLM (`LLM_PROVIDER=openrouter|openai|anthropic|gemini`) e use a **sua** chave — adapters `OpenAICompatibleLLM` (OpenAI/Gemini) e `AnthropicLLM` atrás do mesmo `LLMPort`, selecionados por uma factory. (O agente/tool-calling segue no OpenRouter por ora.)
 
 ## Estrutura
 ```
@@ -113,6 +114,22 @@ cp .env.example .env              # crie seu .env (é ignorado pelo Git)
 npm run ask -- "o que é o single responsibility principle?"
 ```
 > O `npm run ask` carrega o `.env` automaticamente (`--env-file-if-exists`, nativo do Node).
+
+**Escolher o provedor de LLM** (Etapa 16 — use a sua chave): no `.env`, defina
+`LLM_PROVIDER` e a chave correspondente. Todos passam pelo mesmo `LLMPort`:
+```bash
+# OpenRouter (padrão) — 1 chave, roteia p/ GPT/Claude/Gemini via OPENROUTER_MODEL
+LLM_PROVIDER=openrouter   OPENROUTER_API_KEY=sk-or-...
+# OpenAI nativo
+LLM_PROVIDER=openai       OPENAI_API_KEY=sk-...        LLM_MODEL=gpt-4o-mini
+# Anthropic (Claude) nativo
+LLM_PROVIDER=anthropic    ANTHROPIC_API_KEY=sk-ant-... LLM_MODEL=claude-3-5-sonnet-latest
+# Google Gemini nativo
+LLM_PROVIDER=gemini       GEMINI_API_KEY=...           LLM_MODEL=gemini-2.0-flash
+```
+> Os nomes de modelo mudam com o tempo — ajuste `LLM_MODEL` conforme o provedor.
+> Dica: no OpenRouter você já alcança GPT/Claude/Gemini só trocando `OPENROUTER_MODEL`,
+> com **uma** chave. Os provedores nativos servem pra quem prefere usar a conta própria.
 
 **Conversar com memória** (Etapa 8 — o mentor lembra do diálogo):
 ```bash

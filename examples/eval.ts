@@ -25,12 +25,6 @@ import { scoreCase, aggregate, type GoldenCase, type CaseResult } from '../src/c
 import { setupMentor } from './setup.ts';
 
 async function main() {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    console.error('❌ Defina OPENROUTER_API_KEY. Crie uma em https://openrouter.ai/keys');
-    process.exit(1);
-  }
-
   // Dataset: aceita um caminho como argumento (ex.: `npm run eval -- examples/golden.fowler.json`).
   // Sem argumento, usa o golden.json padrão (pareado com examples/docs).
   // ⚠️ O dataset PRECISA casar com a base (DOCS_DIR): as `expectedSources` são os
@@ -44,7 +38,7 @@ async function main() {
   const cases = JSON.parse(await readFile(datasetPath, 'utf8')) as GoldenCase[];
   console.error(`📁 Dataset: ${datasetPath}`);
 
-  const mentor = await setupMentor(apiKey);
+  const mentor = await setupMentor();
   const useCase = new AnswerQuestion({
     embedder: mentor.embedder,
     store: mentor.store,

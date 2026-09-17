@@ -16,13 +16,8 @@ async function main() {
     process.exit(1);
   }
 
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    console.error('❌ Defina OPENROUTER_API_KEY. Crie uma em https://openrouter.ai/keys');
-    process.exit(1);
-  }
-
-  const mentor = await setupMentor(apiKey);
+  // A chave é resolvida pelo provedor escolhido (LLM_PROVIDER) dentro do setup.
+  const mentor = await setupMentor();
   const useCase = new AnswerQuestion({
     embedder: mentor.embedder,
     store: mentor.store,

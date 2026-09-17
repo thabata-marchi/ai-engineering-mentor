@@ -20,7 +20,7 @@ import { MongoMemory } from '../src/adapters/mongoMemory.ts';
 import { InMemoryProfile } from '../src/adapters/inMemoryProfile.ts';
 import { MongoProfile } from '../src/adapters/mongoProfile.ts';
 import { LocalEmbedder, type EmbedderDtype } from '../src/adapters/localEmbedder.ts';
-import { OpenRouterLLM } from '../src/adapters/openRouterLLM.ts';
+import { createLLMFromEnv } from '../src/adapters/llmFactory.ts';
 import { RateLimitedLLM } from '../src/adapters/rateLimitedLLM.ts';
 import { RateLimiter } from '../src/core/rateLimiter.ts';
 import { loadIndex, saveIndex } from '../src/adapters/indexCache.ts';
@@ -54,39 +54,23 @@ export interface Mentor {
   cleanup(): Promise<void>;
 }
 
-/**
- * Guard de segredo (Etapa 12): avisa cedo se a chave parece um placeholder ou
- * vazia. Não é "segurança forte" — é higiene: falha com mensagem clara em vez de
- * fazer uma chamada que o OpenRouter recusaria de qualquer forma.
- */
-function assertApiKey(apiKey: string): void {
-  const suspeita = !apiKey || apiKey.includes('cole-sua-chave') || apiKey.trim().length < 12;
-  if (suspeita) {
-    throw new Error(
-      'OPENROUTER_API_KEY ausente ou parece um placeholder. Copie .env.example para .env ' +
-        'e cole sua chave real (crie em https://openrouter.ai/keys). Nunca comite a chave.',
-    );
-  }
-}
-
-export async function setupMentor(apiKey: string): Promise<Mentor> {
-  assertApiKey(apiKey);
+export async function setupMentor(): Promise<Mentor> {
   const parser = new FileParser();
   const chunker = new SlidingWindowChunker(CHUNK_CONFIG);
   const dtype = (process.env.EMBEDDER_DTYPE as EmbedderDtype) || 'q8';
   const embedder = new LocalEmbedder(dtype);
   const timeoutMs = process.env.LLM_TIMEOUT_MS ? Number(process.env.LLM_TIMEOUT_MS) : 120_000;
-  // Rate limit COMPARTILHADO: protege a cota do OpenRouter (RAG + agente somam no
+  // Rate limit COMPARTILHADO: protege a cota do provedor (RAG + agente somam no
   // mesmo teto). Padrão generoso (20/min) — ajuste com RATE_LIMIT_MAX/WINDOW.
   const limiter = new RateLimiter({
     max: process.env.RATE_LIMIT_MAX ? Number(process.env.RATE_LIMIT_MAX) : 20,
     windowMs: process.env.RATE_LIMIT_WINDOW_MS ? Number(process.env.RATE_LIMIT_WINDOW_MS) : 60_000,
   });
-  const llm = new RateLimitedLLM(
-    new OpenRouterLLM({ apiKey, model: process.env.OPENROUTER_MODEL, timeoutMs }),
-    limiter,
-  );
-  console.error(`🤖 Modelo: ${process.env.OPENROUTER_MODEL ?? 'openrouter/free (padrão)'}`);
+  // Multi-provedor (Etapa 16): LLM_PROVIDER escolhe openrouter|openai|anthropic|gemini.
+  // A factory resolve a chave/modelo por env e valida (guard de segredo embutido).
+  const { llm: rawLlm, provider, model } = createLLMFromEnv(timeoutMs);
+  const llm = new RateLimitedLLM(rawLlm, limiter);
+  console.error(`🤖 Provedor: ${provider} | Modelo: ${model}`);
 
   const files = (await readdir(DOCS_DIR)).filter((f) => FileParser.suporta(f));
   if (files.length === 0) {

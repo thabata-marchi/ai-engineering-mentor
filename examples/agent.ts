@@ -30,9 +30,11 @@ import { createMentorMcpServer } from '../src/mcp/mentorServer.ts';
 import { setupMentor } from './setup.ts';
 
 async function main() {
+  // ⚠️ O AGENTE (tool-calling) roda sobre o OpenRouter — precisa de OPENROUTER_API_KEY
+  // especificamente. O RAG/MCP dentro do setup usa o provedor de LLM_PROVIDER.
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    console.error('❌ Defina OPENROUTER_API_KEY. Crie uma em https://openrouter.ai/keys');
+    console.error('❌ O agente requer OPENROUTER_API_KEY (tool-calling). Crie em https://openrouter.ai/keys');
     process.exit(1);
   }
 
@@ -43,7 +45,7 @@ async function main() {
   }
 
   // 1. Monta o mentor (RAG + perfil) e o expõe como servidor MCP.
-  const mentor = await setupMentor(apiKey);
+  const mentor = await setupMentor();
   const useCase = new AnswerQuestion({
     embedder: mentor.embedder,
     store: mentor.store,
