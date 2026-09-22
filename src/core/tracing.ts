@@ -1,50 +1,50 @@
 // ============================================================================
-//  tracing — OBSERVABILIDADE por spans (Etapa 13)
+//  tracing — span-based OBSERVABILITY (Step 13)
 // ============================================================================
 //
-//  O QUE É UM "SPAN"?
-//  É a medição de UMA operação: nome + quanto durou + atributos (dados úteis,
-//  ex.: quantas fontes foram recuperadas). É o mesmo conceito do OpenTelemetry,
-//  só que aqui numa versão mínima e local — o suficiente para ENXERGAR o que o
-//  mentor faz por dentro (retrieval, geração) sem serviço externo.
+//  WHAT IS A "SPAN"?
+//  It's the measurement of ONE operation: name + how long it took + attributes
+//  (useful data, e.g. how many sources were retrieved). It's the same concept as
+//  OpenTelemetry, but here a minimal, local version — enough to SEE what the mentor
+//  does inside (retrieval, generation) without an external service.
 //
-//  POR QUE UM PORT?
-//  O código instrumentado (AnswerQuestion) só conhece o `TracerPort`. Assim
-//  podemos: não observar nada (NoopTracer, padrão — custo zero), coletar em
-//  memória (InMemoryTracer, para testes/inspeção) ou imprimir (ConsoleTracer).
-//  Trocar por LangSmith no futuro seria só mais um adapter, sem tocar no núcleo.
+//  WHY A PORT?
+//  The instrumented code (AnswerQuestion) only knows `TracerPort`. So we can: observe
+//  nothing (NoopTracer, default — zero cost), collect in memory (InMemoryTracer, for
+//  tests/inspection) or print (ConsoleTracer). Swapping for LangSmith later would be
+//  just another adapter, without touching the core.
 // ============================================================================
 
-/** Uma operação medida: nome, duração e atributos coletados. */
+/** A measured operation: name, duration and collected attributes. */
 export interface Span {
   readonly name: string;
   readonly durationMs: number;
   readonly attributes: Record<string, unknown>;
 }
 
-/** "Alça" de um span em andamento: dá pra anexar atributos e depois encerrar. */
+/** "Handle" of an in-progress span: you can attach attributes and then end it. */
 export interface SpanHandle {
   setAttribute(key: string, value: unknown): void;
   end(): void;
 }
 
-/** O contrato de tracing. Quem instrumenta só depende disto. */
+/** The tracing contract. The instrumenter depends only on this. */
 export interface TracerPort {
   startSpan(name: string, attributes?: Record<string, unknown>): SpanHandle;
 }
 
-/** Padrão: NÃO observa nada (custo zero). Usado quando ninguém passa um tracer. */
+/** Default: observes NOTHING (zero cost). Used when nobody passes a tracer. */
 export class NoopTracer implements TracerPort {
-  // Ignora os argumentos, mas mantém a MESMA assinatura do port (senão o
-  // TypeScript reclama ao chamar startSpan(nome, attrs) através do NoopTracer).
+  // Ignores the arguments, but keeps the SAME signature as the port (otherwise
+  // TypeScript complains when calling startSpan(name, attrs) through the NoopTracer).
   startSpan(_name?: string, _attributes?: Record<string, unknown>): SpanHandle {
     return { setAttribute() {}, end() {} };
   }
 }
 
 /**
- * Coleta os spans finalizados em memória — para testes e para inspecionar o
- * fluxo. O relógio é injetável (`now`), então dá pra testar a duração sem esperar.
+ * Collects finished spans in memory — for tests and to inspect the flow. The clock
+ * is injectable (`now`), so you can test the duration without waiting.
  */
 export class InMemoryTracer implements TracerPort {
   public readonly spans: Span[] = [];
@@ -55,36 +55,36 @@ export class InMemoryTracer implements TracerPort {
   }
 
   startSpan(name: string, attributes: Record<string, unknown> = {}): SpanHandle {
-    const inicio = this.now();
+    const start = this.now();
     const attrs: Record<string, unknown> = { ...attributes };
     const spans = this.spans;
     const now = this.now;
-    let encerrado = false;
+    let ended = false;
     return {
       setAttribute(key, value) {
         attrs[key] = value;
       },
       end() {
-        if (encerrado) return; // idempotente: encerrar duas vezes não duplica
-        encerrado = true;
-        spans.push({ name, durationMs: now() - inicio, attributes: attrs });
+        if (ended) return; // idempotent: ending twice doesn't duplicate
+        ended = true;
+        spans.push({ name, durationMs: now() - start, attributes: attrs });
       },
     };
   }
 }
 
-/** Imprime cada span (ao encerrar) no stderr — para acompanhar ao vivo. */
+/** Prints each span (on end) to stderr — to follow along live. */
 export class ConsoleTracer implements TracerPort {
   startSpan(name: string, attributes: Record<string, unknown> = {}): SpanHandle {
-    const inicio = Date.now();
+    const start = Date.now();
     const attrs: Record<string, unknown> = { ...attributes };
     return {
       setAttribute(key, value) {
         attrs[key] = value;
       },
       end() {
-        const dur = Date.now() - inicio;
-        // stderr (não stdout) para não sujar o protocolo MCP.
+        const dur = Date.now() - start;
+        // stderr (not stdout) so it doesn't pollute the MCP protocol.
         console.error(`🔎 [trace] ${name} ${dur}ms ${JSON.stringify(attrs)}`);
       },
     };

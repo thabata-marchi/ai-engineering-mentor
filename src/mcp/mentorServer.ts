@@ -86,10 +86,10 @@ export function createMentorMcpServer(useCase: AnswerQuestion, profile?: Profile
         if (summary.total === 0) {
           return { content: [{ type: 'text', text: 'No studies recorded in this session yet.' }] };
         }
-        const sources = summary.porFonte
+        const sources = summary.bySource
           .map((f) => `- ${f.source}: ${f.count} time(s)`)
           .join('\n');
-        const recent = summary.ultimas.map((q, i) => `${i + 1}. ${q}`).join('\n');
+        const recent = summary.recent.map((q, i) => `${i + 1}. ${q}`).join('\n');
         const text =
           `📈 Student progress\n\n` +
           `Questions asked: ${summary.total}\n\n` +

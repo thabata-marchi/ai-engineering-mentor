@@ -24,5 +24,5 @@ test('vetor zero não quebra (retorna 0)', () => {
 });
 
 test('tamanhos diferentes → erro claro', () => {
-  assert.throws(() => cosineSimilarity([1, 0], [1, 0, 0]), /tamanhos diferentes/);
+  assert.throws(() => cosineSimilarity([1, 0], [1, 0, 0]), /different sizes/);
 });

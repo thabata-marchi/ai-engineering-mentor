@@ -1,26 +1,26 @@
 // ============================================================================
-//  RateLimiter — limitador de taxa por JANELA DESLIZANTE (Etapa 12 — segurança)
+//  RateLimiter — SLIDING-WINDOW rate limiter (Step 12 — security)
 // ============================================================================
 //
-//  PARA QUE SERVE?
-//  Proteger sua COTA do OpenRouter (lembra dos 429 no tier grátis?) e conter um
-//  agente que "enlouquece" e chama tools em loop. É uma barreira LOCAL, barata:
-//  antes de bater na API, contamos quantas chamadas houve na última janela de
-//  tempo; se passou do limite, recusamos com um erro claro.
+//  WHAT IS IT FOR?
+//  Protecting your provider QUOTA (remember the free-tier 429s?) and containing an
+//  agent that "goes crazy" calling tools in a loop. It's a LOCAL, cheap barrier:
+//  before hitting the API, we count how many calls happened in the last time window;
+//  if it's over the limit, we refuse with a clear error.
 //
-//  POR QUE "JANELA DESLIZANTE"?
-//  Guardamos o horário de cada chamada recente. A cada nova chamada, descartamos
-//  as que já saíram da janela (ex.: mais velhas que 60s) e contamos o resto. É
-//  mais justo que "resetar a cada minuto cheio" (que permitiria rajadas na virada).
+//  WHY A "SLIDING WINDOW"?
+//  We keep the timestamp of each recent call. On every new call, we drop the ones
+//  that already left the window (e.g. older than 60s) and count the rest. It's fairer
+//  than "reset every full minute" (which would allow bursts at the boundary).
 //
-//  DESIGN: é PURO e determinístico — o "relógio" é injetável (`now`), então os
-//  testes controlam o tempo sem esperar de verdade. Mora no core: não sabe de
-//  LLM nem de rede; quem aplica são os DECORATORS dos adapters.
+//  DESIGN: it's PURE and deterministic — the "clock" is injectable (`now`), so tests
+//  control time without actually waiting. It lives in the core: it knows nothing
+//  about the LLM or the network; the adapters' DECORATORS apply it.
 // ============================================================================
 
-/** Erro lançado quando o limite de chamadas é excedido. */
+/** Error thrown when the call limit is exceeded. */
 export class RateLimitError extends Error {
-  readonly retryAfterMs: number; // quanto esperar até liberar de novo
+  readonly retryAfterMs: number; // how long to wait until it frees up again
   constructor(retryAfterMs: number) {
     super(
       `Rate limit exceeded. Try again in ~${Math.ceil(retryAfterMs / 1000)}s. ` +
@@ -32,16 +32,16 @@ export class RateLimitError extends Error {
 }
 
 export interface RateLimiterConfig {
-  readonly max: number; // máximo de chamadas permitidas por janela
-  readonly windowMs: number; // tamanho da janela em ms
-  readonly now?: () => number; // relógio injetável (padrão: Date.now) — facilita testes
+  readonly max: number; // maximum calls allowed per window
+  readonly windowMs: number; // window size in ms
+  readonly now?: () => number; // injectable clock (default: Date.now) — eases testing
 }
 
 export class RateLimiter {
   private readonly max: number;
   private readonly windowMs: number;
   private readonly now: () => number;
-  private readonly hits: number[] = []; // horários das chamadas recentes (ms)
+  private readonly hits: number[] = []; // timestamps of recent calls (ms)
 
   constructor(config: RateLimiterConfig) {
     if (config.max <= 0) throw new Error('RateLimiter: max must be > 0');
@@ -52,31 +52,31 @@ export class RateLimiter {
   }
 
   /**
-   * Registra uma chamada se houver espaço na janela; caso contrário, lança
-   * RateLimitError. Descarta antes os registros que já saíram da janela.
+   * Records a call if there's room in the window; otherwise throws RateLimitError.
+   * It first drops the records that already left the window.
    */
   acquire(): void {
-    const agora = this.now();
-    this.limpar(agora);
+    const nowMs = this.now();
+    this.prune(nowMs);
     if (this.hits.length >= this.max) {
-      // A janela libera quando o registro MAIS ANTIGO expira.
-      const maisAntigo = this.hits[0];
-      const retryAfterMs = maisAntigo + this.windowMs - agora;
+      // The window frees up when the OLDEST record expires.
+      const oldest = this.hits[0];
+      const retryAfterMs = oldest + this.windowMs - nowMs;
       throw new RateLimitError(Math.max(0, retryAfterMs));
     }
-    this.hits.push(agora);
+    this.hits.push(nowMs);
   }
 
-  /** Quantas chamadas ainda cabem na janela atual (útil para logs/testes). */
+  /** How many calls still fit in the current window (useful for logs/tests). */
   remaining(): number {
-    this.limpar(this.now());
+    this.prune(this.now());
     return Math.max(0, this.max - this.hits.length);
   }
 
-  /** Remove os registros que já saíram da janela deslizante. */
-  private limpar(agora: number): void {
-    const limite = agora - this.windowMs;
-    while (this.hits.length > 0 && this.hits[0] <= limite) {
+  /** Removes the records that already left the sliding window. */
+  private prune(nowMs: number): void {
+    const cutoff = nowMs - this.windowMs;
+    while (this.hits.length > 0 && this.hits[0] <= cutoff) {
       this.hits.shift();
     }
   }

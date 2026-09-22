@@ -1,18 +1,18 @@
 // ============================================================================
-//  validation — validação/limites de ENTRADA (Etapa 12 — segurança)
+//  validation — INPUT validation/limits (Step 12 — security)
 // ============================================================================
 //
-//  POR QUE VALIDAR A PERGUNTA?
-//    • Pergunta VAZIA → chamada inútil ao LLM (gasta cota, não ajuda).
-//    • Pergunta GIGANTE → prompt enorme = mais custo, mais lentidão e risco de
-//      estourar o limite de contexto do modelo. Um teto simples evita isso.
-//  "Validar na borda, cedo e com mensagem clara" é higiene básica de segurança.
+//  WHY VALIDATE THE QUESTION?
+//    • EMPTY question → a useless LLM call (wastes quota, doesn't help).
+//    • HUGE question → a giant prompt = more cost, more latency and the risk of
+//      blowing the model's context limit. A simple cap prevents that.
+//  "Validate at the edge, early and with a clear message" is basic security hygiene.
 //
-//  É uma função PURA no core (sem I/O) → aplicada tanto no caso de uso quanto na
-//  camada MCP, e trivial de testar.
+//  It's a PURE function in the core (no I/O) → applied both in the use case and in
+//  the MCP layer, and trivial to test.
 // ============================================================================
 
-/** Erro de entrada inválida (o chamador mandou algo fora das regras). */
+/** Invalid-input error (the caller sent something outside the rules). */
 export class ValidationError extends Error {
   constructor(message: string) {
     super(message);
@@ -20,12 +20,12 @@ export class ValidationError extends Error {
   }
 }
 
-/** Teto padrão do tamanho da pergunta (em caracteres). Ajustável via caller. */
+/** Default cap on the question length (in characters). Adjustable by the caller. */
 export const MAX_QUESTION_LEN = 2000;
 
 /**
- * Valida e NORMALIZA a pergunta: apara espaços, recusa vazio e recusa acima do
- * teto. Devolve o texto já aparado (para o caller usar o valor normalizado).
+ * Validates and NORMALIZES the question: trims spaces, rejects empty and rejects
+ * above the cap. Returns the trimmed text (so the caller uses the normalized value).
  */
 export function validateQuestion(text: string, maxLen: number = MAX_QUESTION_LEN): string {
   const clean = text.trim();

@@ -1,5 +1,5 @@
 // Testes do perfil de aprendizado (Etapa 10): o adapter em memória + a função
-// pura resumir(), o mentor REGISTRANDO o estudo ao responder, e a tool MCP
+// pura summarize(), o mentor REGISTRANDO o estudo ao responder, e a tool MCP
 // meu_progresso. Tudo com dublês — rápido e sem Mongo.
 
 import assert from 'node:assert/strict';
@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
-import { InMemoryProfile, resumir } from '../src/adapters/inMemoryProfile.ts';
+import { InMemoryProfile, summarize } from '../src/adapters/inMemoryProfile.ts';
 import { InMemoryVectorStore } from '../src/adapters/inMemoryVectorStore.ts';
 import { SlidingWindowChunker } from '../src/core/chunker.ts';
 import { AnswerQuestion } from '../src/application/answerQuestion.ts';
@@ -17,24 +17,24 @@ import type { Document, StudyRecord } from '../src/core/models.ts';
 import { FakeEmbedder } from './helpers/fakeEmbedder.ts';
 import { FakeLLM } from './helpers/fakeLLM.ts';
 
-test('resumir: conta fontes, ordena por frequência e traz as últimas perguntas', () => {
+test('summarize: conta fontes, ordena por frequência e traz as últimas perguntas', () => {
   const registros: StudyRecord[] = [
     { question: 'p1', sources: ['a.md', 'b.md'], at: '2026-01-01T00:00:00Z' },
     { question: 'p2', sources: ['a.md'], at: '2026-01-01T00:00:01Z' },
     { question: 'p3', sources: ['c.md'], at: '2026-01-01T00:00:02Z' },
   ];
-  const r = resumir(registros);
+  const r = summarize(registros);
 
   assert.equal(r.total, 3);
   // a.md aparece 2x → deve vir primeiro.
-  assert.deepEqual(r.porFonte[0], { source: 'a.md', count: 2 });
+  assert.deepEqual(r.bySource[0], { source: 'a.md', count: 2 });
   // últimas perguntas da mais nova para a mais antiga.
-  assert.deepEqual(r.ultimas, ['p3', 'p2', 'p1']);
+  assert.deepEqual(r.recent, ['p3', 'p2', 'p1']);
 });
 
-test('resumir: perfil vazio devolve total 0 e listas vazias', () => {
-  const r = resumir([]);
-  assert.deepEqual(r, { total: 0, porFonte: [], ultimas: [] });
+test('summarize: perfil vazio devolve total 0 e listas vazias', () => {
+  const r = summarize([]);
+  assert.deepEqual(r, { total: 0, bySource: [], recent: [] });
 });
 
 test('InMemoryProfile: record + summary por aluno (isolado)', async () => {
@@ -44,10 +44,10 @@ test('InMemoryProfile: record + summary por aluno (isolado)', async () => {
 
   const r = await profile.summary('aluno-1');
   assert.equal(r.total, 2);
-  assert.deepEqual(r.porFonte[0], { source: 'clean.md', count: 2 });
+  assert.deepEqual(r.bySource[0], { source: 'clean.md', count: 2 });
 
   // Outro aluno não vê os estudos do primeiro.
-  assert.deepEqual(await profile.summary('aluno-2'), { total: 0, porFonte: [], ultimas: [] });
+  assert.deepEqual(await profile.summary('aluno-2'), { total: 0, bySource: [], recent: [] });
 });
 
 /** Monta um mentor com base indexada + perfil, pronto para responder. */
@@ -73,8 +73,8 @@ test('mentor com perfil: registra a pergunta e a fonte tocada ao responder', asy
 
   const r = await profile.summary('sessao-A');
   assert.equal(r.total, 1);
-  assert.deepEqual(r.ultimas, ['o que é SRP?']);
-  assert.equal(r.porFonte[0].source, 'srp.md');
+  assert.deepEqual(r.recent, ['o que é SRP?']);
+  assert.equal(r.bySource[0].source, 'srp.md');
 });
 
 test('mentor sem sessionId: registra sob "default"', async () => {

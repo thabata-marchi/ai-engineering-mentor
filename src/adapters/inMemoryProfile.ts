@@ -30,7 +30,7 @@ export class InMemoryProfile implements ProfilePort {
 
   async summary(studentId: string): Promise<ProfileSummary> {
     const registros = this.students.get(studentId) ?? [];
-    return resumir(registros);
+    return summarize(registros);
   }
 }
 
@@ -39,7 +39,7 @@ export class InMemoryProfile implements ProfilePort {
  * entrada → mesma saída, sem efeitos), então é trivial de testar e é
  * reaproveitada pelo MongoProfile.
  */
-export function resumir(registros: readonly StudyRecord[]): ProfileSummary {
+export function summarize(registros: readonly StudyRecord[]): ProfileSummary {
   // Conta quantas vezes cada fonte foi tocada.
   const contagem = new Map<string, number>();
   for (const r of registros) {
@@ -48,14 +48,14 @@ export function resumir(registros: readonly StudyRecord[]): ProfileSummary {
     }
   }
 
-  const porFonte = [...contagem.entries()]
+  const bySource = [...contagem.entries()]
     .map(([source, count]) => ({ source, count }))
     .sort((a, b) => b.count - a.count); // mais consultadas primeiro
 
-  const ultimas = registros
+  const recent = registros
     .slice(-ULTIMAS_LIMIT) // as N mais recentes
     .reverse() // da mais nova para a mais antiga
     .map((r) => r.question);
 
-  return { total: registros.length, porFonte, ultimas };
+  return { total: registros.length, bySource, recent };
 }

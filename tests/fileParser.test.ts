@@ -25,11 +25,11 @@ test('lê .pdf delegando para o parser de PDF', async () => {
 
 test('recusa extensão desconhecida com erro claro', async () => {
   const parser = new FileParser();
-  await assert.rejects(() => parser.parse('planilha.xlsx'), /não sabe ler/i);
+  await assert.rejects(() => parser.parse('planilha.xlsx'), /cannot read/i);
 });
 
 test('suporta() reconhece os formatos certos', () => {
-  assert.equal(FileParser.suporta('a.pdf'), true);
-  assert.equal(FileParser.suporta('a.md'), true);
-  assert.equal(FileParser.suporta('a.png'), false);
+  assert.equal(FileParser.supports('a.pdf'), true);
+  assert.equal(FileParser.supports('a.md'), true);
+  assert.equal(FileParser.supports('a.png'), false);
 });

@@ -1,75 +1,76 @@
 // ============================================================================
-//  MODELOS DO NÚCLEO (core) — as "peças de dado" do RAG
+//  CORE MODELS — the RAG "data pieces"
 // ============================================================================
 //
-//  O QUE É ESTE ARQUIVO?
-//  Aqui ficam apenas os TIPOS de dados que circulam pelo sistema. Nada de lógica,
-//  nada de LLM, nada de banco. São como "peças de lego" que os outros módulos
-//  vão usar para montar as funcionalidades.
+//  WHAT IS THIS FILE?
+//  Here live only the data TYPES that flow through the system. No logic, no LLM,
+//  no database. They are like "lego pieces" the other modules use to assemble the
+//  features.
 //
-//  POR QUE FICAM SEPARADOS E SEM DEPENDÊNCIA EXTERNA?
-//  Porque este é o NÚCLEO da Arquitetura Hexagonal. O núcleo não sabe (nem
-//  precisa saber) se o LLM é OpenAI ou se o banco é Chroma. Mantê-lo "puro"
-//  deixa tudo fácil de testar e permite trocar de tecnologia sem mexer aqui.
+//  WHY ARE THEY SEPARATE AND WITH NO EXTERNAL DEPENDENCY?
+//  Because this is the CORE of the Hexagonal Architecture. The core doesn't know
+//  (nor needs to know) whether the LLM is OpenAI or the database is Chroma. Keeping
+//  it "pure" makes everything easy to test and lets you swap technology without
+//  touching anything here.
 //
-//  ONDE CADA TIPO APARECE NO FLUXO DO RAG:
+//  WHERE EACH TYPE APPEARS IN THE RAG FLOW:
 //
-//    Arquivo → [Document] → [Chunk]s → (viram vetores) → guardados no banco
+//    File → [Document] → [Chunk]s → (become vectors) → stored in the database
 //                                                                │
-//    Pergunta → [Query] → busca por similaridade → [RetrievedContext]
+//    Question → [Query] → similarity search → [RetrievedContext]
 //                                                                │
-//                                     LLM responde → [Answer] + [Source]s
+//                                      LLM answers → [Answer] + [Source]s
 //
-//  DETALHE DE TYPESCRIPT:
-//  `readonly` = a propriedade não pode ser trocada depois de criada
-//  (imutabilidade). É o equivalente, em tempo de compilação, ao `frozen=True`
-//  do Python. Objetos imutáveis geram menos bugs e são mais fáceis de raciocinar.
+//  TYPESCRIPT DETAIL:
+//  `readonly` = the property cannot be swapped after creation (immutability). It's
+//  the compile-time equivalent of Python's `frozen=True`. Immutable objects cause
+//  fewer bugs and are easier to reason about.
 // ============================================================================
 
-/** Um documento-fonte da base de conhecimento (ex.: um PDF ou um .md já lido). */
+/** A source document from the knowledge base (e.g. a PDF or a .md already read). */
 export interface Document {
-  readonly id: string; // identificador único do documento
-  readonly source: string; // de onde veio (nome/caminho) → usado pra citar a fonte
-  readonly text: string; // o texto já EXTRAÍDO do arquivo
-  readonly metadata?: Record<string, unknown>; // extras opcionais (autor, página...)
+  readonly id: string; // unique document identifier
+  readonly source: string; // where it came from (name/path) → used to cite the source
+  readonly text: string; // the text already EXTRACTED from the file
+  readonly metadata?: Record<string, unknown>; // optional extras (author, page...)
 }
 
-/** Um PEDAÇO menor de um Document. É o chunk que vira vetor e depois é buscado. */
+/** A smaller PIECE of a Document. It's the chunk that becomes a vector and is searched. */
 export interface Chunk {
-  readonly id: string; // id único do pedaço (ex.: "d1-0")
-  readonly documentId: string; // a qual Document este chunk pertence
-  readonly text: string; // o texto do pedaço
-  readonly position: number; // ordem no documento (0,1,2...) → rastreabilidade
+  readonly id: string; // unique piece id (e.g. "d1-0")
+  readonly documentId: string; // which Document this chunk belongs to
+  readonly text: string; // the piece's text
+  readonly position: number; // order in the document (0,1,2...) → traceability
   readonly metadata?: Record<string, unknown>;
 }
 
-/** A pergunta que o usuário faz ao mentor. */
+/** The question the user asks the mentor. */
 export interface Query {
   readonly text: string;
 }
 
-/** Um Chunk recuperado + o quão parecido ele é com a pergunta (0 a 1). */
+/** A retrieved Chunk + how similar it is to the question (0 to 1). */
 export interface ScoredChunk {
   readonly chunk: Chunk;
-  readonly score: number; // similaridade: perto de 1 = muito parecido; perto de 0 = nada
+  readonly score: number; // similarity: near 1 = very similar; near 0 = not at all
 }
 
-/** O conjunto de chunks recuperados para responder UMA pergunta (o "contexto"). */
+/** The set of chunks retrieved to answer ONE question (the "context"). */
 export interface RetrievedContext {
-  readonly chunks: ScoredChunk[]; // normalmente os "top-k" mais parecidos
+  readonly chunks: ScoredChunk[]; // usually the most similar "top-k"
 }
 
-/** Uma fonte citada na resposta — atende ao requisito de rastreabilidade. */
+/** A source cited in the answer — meets the traceability requirement. */
 export interface Source {
-  readonly documentId: string; // de qual documento
-  readonly source: string; // nome do arquivo (ex.: clean_code.pdf)
-  readonly position: number; // qual pedaço do documento
+  readonly documentId: string; // from which document
+  readonly source: string; // file name (e.g. clean_code.pdf)
+  readonly position: number; // which piece of the document
 }
 
-/** A resposta final do mentor + as FONTES de onde a informação foi recuperada. */
+/** The mentor's final answer + the SOURCES the information was retrieved from. */
 export interface Answer {
-  readonly text: string; // o texto da resposta
-  readonly sources: Source[]; // de onde ela saiu (rastreabilidade)
+  readonly text: string; // the answer text
+  readonly sources: Source[]; // where it came from (traceability)
 }
 
 /**
@@ -82,72 +83,72 @@ export interface Turn {
   readonly at: string; // ISO date/time (e.g. "2026-09-11T14:00:00.000Z")
 }
 
-/** Um registro do que o aluno estudou: a pergunta feita + as fontes tocadas. */
+/** A record of what the student studied: the question asked + the sources touched. */
 export interface StudyRecord {
   readonly question: string;
-  readonly sources: string[]; // nomes dos documentos/fontes consultados
+  readonly sources: string[]; // names of the documents/sources consulted
   readonly at: string; // ISO
 }
 
-/** Um resumo do perfil de aprendizado do aluno (o que ele vem estudando). */
+/** A summary of the student's learning profile (what they've been studying). */
 export interface ProfileSummary {
-  readonly total: number; // quantas perguntas fez
-  readonly porFonte: { source: string; count: number }[]; // documentos mais consultados
-  readonly ultimas: string[]; // últimas perguntas
+  readonly total: number; // how many questions they asked
+  readonly bySource: { source: string; count: number }[]; // most consulted documents
+  readonly recent: string[]; // latest questions
 }
 
 // ============================================================================
-//  TIPOS DO AGENTE (Etapa 11) — tool-calling
+//  AGENT TYPES (Step 11) — tool-calling
 // ============================================================================
 //
-//  Um AGENTE é autônomo: dado um objetivo, ELE decide quais ferramentas (tools)
-//  usar e em que ordem, num loop, até concluir. Para isso, o LLM precisa de um
-//  contrato mais rico que o `generate(system, user) → texto`: mandamos a LISTA
-//  de tools disponíveis e o modelo pode responder pedindo para CHAMAR uma delas.
+//  An AGENT is autonomous: given a goal, IT decides which tools to use and in what
+//  order, in a loop, until it's done. For that, the LLM needs a richer contract
+//  than `generate(system, user) → text`: we send the LIST of available tools and
+//  the model can reply asking to CALL one of them.
 
-/** A "ficha" de uma ferramenta que o modelo pode chamar (schema no padrão OpenAI/JSON Schema). */
+/** A tool's "spec" the model can call (schema in the OpenAI/JSON Schema style). */
 export interface ToolSpec {
-  readonly name: string; // ex.: "perguntar"
-  readonly description: string; // o que ela faz (o modelo usa isto para decidir)
-  readonly parameters: Record<string, unknown>; // JSON Schema dos argumentos
+  readonly name: string; // e.g. "ask"
+  readonly description: string; // what it does (the model uses this to decide)
+  readonly parameters: Record<string, unknown>; // JSON Schema of the arguments
 }
 
-/** Um pedido do modelo para EXECUTAR uma tool (o "Act" do loop ReAct). */
+/** A request from the model to EXECUTE a tool (the "Act" of the ReAct loop). */
 export interface ToolCall {
-  readonly id: string; // id que amarra o pedido ao resultado
-  readonly name: string; // qual tool chamar
-  readonly arguments: string; // argumentos em JSON (string, como a OpenAI devolve)
+  readonly id: string; // id that ties the request to the result
+  readonly name: string; // which tool to call
+  readonly arguments: string; // arguments as JSON (string, as OpenAI returns them)
 }
 
 /**
- * Uma mensagem do diálogo com o modelo em formato de chat. Diferente do `Turn`
- * (aluno/mentor, da memória), aqui os papéis seguem o padrão da API: system,
- * user, assistant e `tool` (o RESULTADO de uma tool devolvido ao modelo).
+ * A message of the dialogue with the model in chat format. Unlike `Turn`
+ * (student/mentor, from memory), here the roles follow the API standard: system,
+ * user, assistant and `tool` (the RESULT of a tool returned to the model).
  */
 export interface ChatMessage {
   readonly role: 'system' | 'user' | 'assistant' | 'tool';
-  readonly content: string; // texto (pode ser vazio quando o assistant só pede tools)
-  readonly toolCalls?: ToolCall[]; // só em mensagens 'assistant' que pedem tools
-  readonly toolCallId?: string; // só em mensagens 'tool' (amarra ao pedido)
-  readonly name?: string; // só em 'tool': o nome da tool executada
+  readonly content: string; // text (can be empty when the assistant only requests tools)
+  readonly toolCalls?: ToolCall[]; // only on 'assistant' messages requesting tools
+  readonly toolCallId?: string; // only on 'tool' messages (ties to the request)
+  readonly name?: string; // only on 'tool': the name of the executed tool
 }
 
-/** O que o LLM devolve numa rodada: ou um texto final, ou pedidos de tool. */
+/** What the LLM returns in a round: either a final text, or tool requests. */
 export interface ChatResult {
-  readonly content: string; // resposta final (vazio quando há toolCalls)
-  readonly toolCalls: ToolCall[]; // vazio quando o modelo já deu a resposta final
+  readonly content: string; // final answer (empty when there are toolCalls)
+  readonly toolCalls: ToolCall[]; // empty when the model already gave the final answer
 }
 
-/** Um passo do raciocínio do agente — para RASTREABILIDADE (não inventar). */
+/** A step of the agent's reasoning — for TRACEABILITY (don't make things up). */
 export interface AgentStep {
-  readonly tool: string; // qual tool foi chamada
-  readonly arguments: string; // com quais argumentos (JSON)
-  readonly result: string; // o que a tool devolveu
+  readonly tool: string; // which tool was called
+  readonly arguments: string; // with which arguments (JSON)
+  readonly result: string; // what the tool returned
 }
 
-/** O resultado do agente: a resposta final + o rastro de tools que ele usou. */
+/** The agent's result: the final answer + the trace of tools it used. */
 export interface AgentResult {
-  readonly answer: string; // a resposta final ao objetivo
-  readonly steps: AgentStep[]; // o passo a passo (quais tools, em que ordem)
-  readonly stoppedByLimit: boolean; // true se parou por atingir o teto de iterações
+  readonly answer: string; // the final answer to the goal
+  readonly steps: AgentStep[]; // the step-by-step (which tools, in what order)
+  readonly stoppedByLimit: boolean; // true if it stopped by hitting the iteration cap
 }

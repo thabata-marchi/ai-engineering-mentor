@@ -1,11 +1,11 @@
 // ============================================================================
-//  setup.ts — "ponto de montagem" compartilhado (usado por ask.ts e chat.ts)
+//  setup.ts — shared "composition root" (used by ask.ts, chat.ts, mcp.ts, ...)
 // ============================================================================
 //
-//  Aqui a gente escolhe as implementações REAIS conforme o ambiente (.env),
-//  indexa a base uma vez e devolve tudo pronto. Assim os dois modos de uso
-//  (uma pergunta = ask.ts; conversa = chat.ts) reaproveitam a MESMA montagem,
-//  sem duplicar código.
+//  Here we pick the REAL implementations based on the environment (.env), index
+//  the base once and return everything ready. This way every mode of use (a
+//  single question = ask.ts; a conversation = chat.ts; the MCP server = mcp.ts)
+//  reuses the SAME composition, without duplicating code.
 // ============================================================================
 
 import { readdir, stat } from 'node:fs/promises';
@@ -32,7 +32,7 @@ const CHUNK_CONFIG = { chunkSizeWords: 200, overlapWords: 30 };
 const BATCH_SIZE = 32;
 const MAX_CHUNKS = process.env.MAX_CHUNKS ? Number(process.env.MAX_CHUNKS) : Infinity;
 
-// Pasta da base. Padrão: examples/docs. Aponte pra sua pasta com DOCS_DIR.
+// Base folder. Default: examples/docs. Point to your own folder with DOCS_DIR.
 const DEFAULT_DIR = new URL('./docs/', import.meta.url).pathname;
 const DOCS_DIR = process.env.DOCS_DIR
   ? isAbsolute(process.env.DOCS_DIR)
@@ -40,14 +40,14 @@ const DOCS_DIR = process.env.DOCS_DIR
     : resolve(process.cwd(), process.env.DOCS_DIR)
   : DEFAULT_DIR;
 
-/** Tudo o que o mentor precisa, já montado e indexado. */
+/** Everything the mentor needs, already assembled and indexed. */
 export interface Mentor {
   readonly embedder: LocalEmbedder;
   readonly store: VectorStorePort;
   readonly memory: MemoryPort;
   readonly profile: ProfilePort;
   readonly llm: LLMPort;
-  readonly limiter: RateLimiter; // compartilhado (RAG + agente) p/ proteger a cota
+  readonly limiter: RateLimiter; // shared (RAG + agent) to protect the quota
   readonly topK: number;
   readonly mode: MentorMode;
   readonly lang: MentorLang; // answer language (Step 18)
@@ -61,25 +61,25 @@ export async function setupMentor(): Promise<Mentor> {
   const dtype = (process.env.EMBEDDER_DTYPE as EmbedderDtype) || 'q8';
   const embedder = new LocalEmbedder(dtype);
   const timeoutMs = process.env.LLM_TIMEOUT_MS ? Number(process.env.LLM_TIMEOUT_MS) : 120_000;
-  // Rate limit COMPARTILHADO: protege a cota do provedor (RAG + agente somam no
-  // mesmo teto). Padrão generoso (20/min) — ajuste com RATE_LIMIT_MAX/WINDOW.
+  // SHARED rate limit: protects the provider quota (RAG + agent share the same
+  // cap). Generous default (20/min) — tune with RATE_LIMIT_MAX/WINDOW.
   const limiter = new RateLimiter({
     max: process.env.RATE_LIMIT_MAX ? Number(process.env.RATE_LIMIT_MAX) : 20,
     windowMs: process.env.RATE_LIMIT_WINDOW_MS ? Number(process.env.RATE_LIMIT_WINDOW_MS) : 60_000,
   });
-  // Multi-provedor (Etapa 16): LLM_PROVIDER escolhe openrouter|openai|anthropic|gemini.
-  // A factory resolve a chave/modelo por env e valida (guard de segredo embutido).
+  // Multi-provider (Step 16): LLM_PROVIDER picks openrouter|openai|anthropic|gemini.
+  // The factory resolves the key/model from env and validates (built-in secret guard).
   const { llm: rawLlm, provider, model } = createLLMFromEnv(timeoutMs);
   const llm = new RateLimitedLLM(rawLlm, limiter);
-  console.error(`🤖 Provedor: ${provider} | Modelo: ${model}`);
+  console.error(`🤖 Provider: ${provider} | Model: ${model}`);
 
-  const files = (await readdir(DOCS_DIR)).filter((f) => FileParser.suporta(f));
+  const files = (await readdir(DOCS_DIR)).filter((f) => FileParser.supports(f));
   if (files.length === 0) {
-    throw new Error(`Nenhum arquivo suportado (.pdf/.md/.txt) em: ${DOCS_DIR}`);
+    throw new Error(`No supported files (.pdf/.md/.txt) in: ${DOCS_DIR}`);
   }
   const signature = await buildSignature(files, dtype);
 
-  // Store e memória: memória (padrão) OU MongoDB (VECTOR_STORE=mongo).
+  // Store and memory: in-memory (default) OR MongoDB (VECTOR_STORE=mongo).
   const usingMongo = process.env.VECTOR_STORE === 'mongo';
   const mongoUrl = process.env.MONGO_URL ?? 'mongodb://localhost:27017';
   const store: VectorStorePort = usingMongo
@@ -149,20 +149,20 @@ async function buildSignature(files: string[], dtype: string): Promise<string> {
 }
 
 async function indexDocs(store: VectorStorePort, deps: IngestDeps): Promise<void> {
-  console.error(`⏳ Indexando ${deps.files.length} arquivo(s) de ${DOCS_DIR}`);
-  console.error('   (a 1ª vez baixa o modelo de embeddings; depois vai mais rápido)');
+  console.error(`⏳ Indexing ${deps.files.length} file(s) from ${DOCS_DIR}`);
+  console.error('   (the first time downloads the embedding model; after that it is faster)');
   for (const file of deps.files) {
     const doc = await deps.parser.parse(join(DOCS_DIR, file));
     let chunks = deps.chunker.chunk(doc);
     if (chunks.length > MAX_CHUNKS) {
       chunks = chunks.slice(0, MAX_CHUNKS);
-      console.error(`   ${file}: limitado a ${MAX_CHUNKS} chunks (MAX_CHUNKS)`);
+      console.error(`   ${file}: limited to ${MAX_CHUNKS} chunks (MAX_CHUNKS)`);
     }
-    console.error(`   ${file}: ${chunks.length} chunks — gerando embeddings...`);
+    console.error(`   ${file}: ${chunks.length} chunks — generating embeddings...`);
     for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-      const lote = chunks.slice(i, i + BATCH_SIZE);
-      const embeddings = await deps.embedder.embed(lote.map((c) => c.text));
-      await store.add(lote, embeddings);
+      const batch = chunks.slice(i, i + BATCH_SIZE);
+      const embeddings = await deps.embedder.embed(batch.map((c) => c.text));
+      await store.add(batch, embeddings);
       process.stderr.write(`\r      ${Math.min(i + BATCH_SIZE, chunks.length)}/${chunks.length}`);
     }
     process.stderr.write('\n');
@@ -177,12 +177,12 @@ async function prepareMemory(
   const cache = await loadIndex(CACHE_PATH);
   if (cache && cache.signature === signature) {
     store.restore(cache.entries);
-    console.error(`⚡ Índice carregado do cache (${cache.entries.length} chunks). Sem reindexar.`);
+    console.error(`⚡ Index loaded from cache (${cache.entries.length} chunks). No re-indexing.`);
     return;
   }
   await indexDocs(store, deps);
   await saveIndex(CACHE_PATH, { signature, entries: store.snapshot() });
-  console.error('💾 Índice salvo em cache. As próximas execuções serão instantâneas.');
+  console.error('💾 Index saved to cache. The next runs will be instant.');
 }
 
 async function prepareMongo(
@@ -192,11 +192,11 @@ async function prepareMongo(
 ): Promise<void> {
   const saved = await store.readSignature();
   if (saved === signature && (await store.count()) > 0) {
-    console.error(`⚡ Índice já está no MongoDB (${await store.count()} chunks). Sem reindexar.`);
+    console.error(`⚡ Index already in MongoDB (${await store.count()} chunks). No re-indexing.`);
     return;
   }
   await store.clear();
   await indexDocs(store, deps);
   await store.writeSignature(signature);
-  console.error('💾 Índice gravado no MongoDB. As próximas execuções serão instantâneas.');
+  console.error('💾 Index written to MongoDB. The next runs will be instant.');
 }

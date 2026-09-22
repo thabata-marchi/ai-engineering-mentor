@@ -8,7 +8,7 @@
 //  Express.
 //
 //  Guardamos UM DOCUMENTO POR ESTUDO: { studentId, question, sources, at }. O
-//  RESUMO reaproveita a mesma função pura `resumir()` do InMemoryProfile — a
+//  RESUMO reaproveita a mesma função pura `summarize()` do InMemoryProfile — a
 //  regra de negócio é única; só muda ONDE os dados moram.
 // ============================================================================
 
@@ -16,7 +16,7 @@ import { MongoClient, type Collection } from 'mongodb';
 
 import type { ProfileSummary, StudyRecord } from '../core/models.ts';
 import type { ProfilePort } from '../core/ports.ts';
-import { resumir } from './inMemoryProfile.ts';
+import { summarize } from './inMemoryProfile.ts';
 
 interface StudyDoc extends StudyRecord {
   readonly studentId: string;
@@ -60,7 +60,7 @@ export class MongoProfile implements ProfilePort {
       .find({ studentId }, { projection: { _id: 0, studentId: 0 } })
       .sort({ at: 1 })
       .toArray();
-    return resumir(registros);
+    return summarize(registros);
   }
 
   /** Fecha a conexão — chamar ao encerrar o programa. */

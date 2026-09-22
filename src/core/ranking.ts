@@ -1,26 +1,26 @@
 // ============================================================================
-//  RANKING — ordena chunks pela similaridade com a pergunta (lógica PURA)
+//  RANKING — orders chunks by similarity to the question (PURE logic)
 // ============================================================================
 //
-//  POR QUE ISSO MORA AQUI (no core)?
-//  Porque "pontuar cada vetor com cosseno, ordenar e pegar os top-k" é lógica
-//  PURA — não depende de onde os vetores estão guardados (memória, Mongo, etc.).
-//  Extraindo isso para um lugar só, TODOS os vector stores (InMemory, Mongo...)
-//  reaproveitam a MESMA regra. Menos duplicação, um único ponto de teste (DRY).
+//  WHY DOES THIS LIVE HERE (in the core)?
+//  Because "score each vector with cosine, sort, and take the top-k" is PURE logic
+//  — it doesn't depend on where the vectors are stored (memory, Mongo, etc.).
+//  Extracting it to one place lets ALL vector stores (InMemory, Mongo...) reuse the
+//  SAME rule. Less duplication, a single point to test (DRY).
 // ============================================================================
 
 import { cosineSimilarity } from './similarity.ts';
 import type { Chunk, RetrievedContext, ScoredChunk } from './models.ts';
 
-/** Um chunk + o vetor que o representa (o que qualquer store guarda). */
+/** A chunk + the vector that represents it (what any store keeps). */
 export interface RankableEntry {
   readonly chunk: Chunk;
   readonly embedding: number[];
 }
 
 /**
- * Pontua cada entry pela similaridade de cosseno com a pergunta, ordena do mais
- * parecido para o menos, e devolve os "top-k".
+ * Scores each entry by cosine similarity to the question, sorts from most similar
+ * to least, and returns the "top-k".
  */
 export function rankByCosine(
   entries: readonly RankableEntry[],
@@ -32,6 +32,6 @@ export function rankByCosine(
     score: cosineSimilarity(queryEmbedding, entry.embedding),
   }));
 
-  scored.sort((a, b) => b.score - a.score); // do maior score para o menor
-  return { chunks: scored.slice(0, k) }; // só os k melhores
+  scored.sort((a, b) => b.score - a.score); // from highest score to lowest
+  return { chunks: scored.slice(0, k) }; // only the k best
 }

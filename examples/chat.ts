@@ -55,12 +55,12 @@ async function main() {
         if (resumo.total === 0) {
           console.log('\n📈 Ainda não há estudos registrados nesta sessão.\n');
         } else {
-          const fontes = resumo.porFonte.map((f) => `   - ${f.source}: ${f.count}x`).join('\n');
-          const ultimas = resumo.ultimas.map((q, i) => `   ${i + 1}. ${q}`).join('\n');
+          const fontes = resumo.bySource.map((f) => `   - ${f.source}: ${f.count}x`).join('\n');
+          const recent = resumo.recent.map((q, i) => `   ${i + 1}. ${q}`).join('\n');
           console.log(
             `\n📈 Progresso (${resumo.total} pergunta(s))\n` +
               `Fontes mais consultadas:\n${fontes}\n` +
-              `Últimas perguntas:\n${ultimas}\n`,
+              `Últimas perguntas:\n${recent}\n`,
           );
         }
         continue;

@@ -1,53 +1,51 @@
 // ============================================================================
-//  CHUNKER — quebra um Document em pedaços (Chunks) para o RAG
+//  CHUNKER — splits a Document into pieces (Chunks) for the RAG
 // ============================================================================
 //
-//  POR QUE PRECISAMOS "PICAR" O DOCUMENTO?
-//  No RAG, a busca é feita por PEDAÇOS, não pelo documento inteiro. Motivos:
-//    • um livro inteiro é grande demais para caber no contexto do LLM;
-//    • pedaços menores deixam a busca mais PRECISA (menos ruído em volta).
-//  Como o professor mostrou no curso, é o chunking que decide "o que o banco de
-//  vetores guarda — e, portanto, o que o RAG consegue recuperar".
+//  WHY DO WE "SLICE" THE DOCUMENT?
+//  In RAG, the search is done over PIECES, not the whole document. Reasons:
+//    • a whole book is too big to fit in the LLM's context;
+//    • smaller pieces make the search more PRECISE (less noise around).
+//  Chunking is what decides "what the vector store keeps — and therefore what the
+//  RAG can retrieve".
 //
-//  A DECISÃO DE TAMANHO (trade-off — sem bala de prata):
-//    • chunk PEQUENO  → busca precisa, mas perde o contexto em volta.
-//    • chunk GRANDE   → mantém contexto, mas traz ruído e reduz a precisão.
-//  A pesquisa sugere ~256–512 tokens para busca factual, com ~10–20% de
-//  sobreposição (overlap) para não "cortar" uma informação na fronteira.
-//  (fontes citadas no chat / ANALISE-ARQUITETURA.md)
+//  THE SIZE DECISION (trade-off — no silver bullet):
+//    • SMALL chunk  → precise search, but loses the surrounding context.
+//    • LARGE chunk  → keeps context, but brings noise and reduces precision.
+//  Research suggests ~256–512 tokens for factual search, with ~10–20% overlap so an
+//  idea isn't "cut" at the boundary.
 //
-//  ⚠️ Aqui medimos em PALAVRAS (proxy simples de tokens: ~1 token ≈ ¾ de palavra).
-//  Começamos com uma estratégia simples e correta — "janela deslizante" (o mesmo
-//  conceito de overlap que você viu no resumo de conversas do Módulo 4!). Depois,
-//  na Fase 7 (Evaluation), a gente MEDE e ajusta o tamanho com dados reais, em vez
-//  de chutar.
+//  ⚠️ Here we measure in WORDS (a simple token proxy: ~1 token ≈ ¾ of a word). We
+//  start with a simple, correct strategy — a "sliding window" (the same overlap
+//  concept). Later, at the evaluation phase, we MEASURE and tune the size with real
+//  data instead of guessing.
 //
-//  DECISÃO DE ARQUITETURA (crítica à minha própria escolha anterior):
-//  Na Etapa 1 eu criei um `ChunkerPort`. Mas repare: chunking é LÓGICA PURA — não
-//  depende de nenhuma tecnologia externa (LLM, banco). Então ele não precisa ser
-//  um "adapter"; ele mora aqui no `core`. Mantemos a INTERFACE (`ChunkerPort`)
-//  não por causa de I/O, e sim para poder TROCAR a estratégia de chunking depois
-//  (isso é o padrão de projeto "Strategy") e comparar qual recupera melhor.
+//  ARCHITECTURE DECISION (critiquing my own earlier choice):
+//  In Step 1 I created a `ChunkerPort`. But note: chunking is PURE LOGIC — it
+//  doesn't depend on any external technology (LLM, database). So it doesn't need to
+//  be an "adapter"; it lives here in `core`. We keep the INTERFACE (`ChunkerPort`)
+//  not because of I/O, but to be able to SWAP the chunking strategy later (the
+//  Strategy pattern) and compare which one retrieves better.
 // ============================================================================
 
 import type { Chunk, Document } from './models.ts';
 import type { ChunkerPort } from './ports.ts';
 
-/** Configuração do chunker. Valores em PALAVRAS. */
+/** Chunker configuration. Values in WORDS. */
 export interface ChunkerConfig {
-  readonly chunkSizeWords: number; // tamanho alvo de cada chunk
-  readonly overlapWords: number; // palavras repetidas entre chunks vizinhos
+  readonly chunkSizeWords: number; // target size of each chunk
+  readonly overlapWords: number; // words repeated between neighboring chunks
 }
 
 const DEFAULT_CONFIG: ChunkerConfig = {
-  chunkSizeWords: 200, // ~250 tokens (bom p/ busca factual) — ajustamos com eval depois
-  overlapWords: 30, // ~15% de sobreposição
+  chunkSizeWords: 200, // ~250 tokens (good for factual search) — tuned with eval later
+  overlapWords: 30, // ~15% overlap
 };
 
 /**
- * Estratégia "janela deslizante": desliza uma janela de `chunkSizeWords` sobre o
- * texto, avançando `chunkSizeWords - overlapWords` a cada passo. As palavras do
- * overlap aparecem no fim de um chunk e no começo do próximo (continuidade).
+ * "Sliding window" strategy: slides a window of `chunkSizeWords` over the text,
+ * advancing `chunkSizeWords - overlapWords` each step. The overlap words appear at
+ * the end of one chunk and the start of the next (continuity).
  */
 export class SlidingWindowChunker implements ChunkerPort {
   private readonly config: ChunkerConfig;
@@ -55,22 +53,22 @@ export class SlidingWindowChunker implements ChunkerPort {
   constructor(config: Partial<ChunkerConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
 
-    // Programação defensiva: se o overlap for >= tamanho, a janela nunca "anda"
-    // (loop infinito). Falhar cedo, com mensagem clara, é melhor que travar depois.
+    // Defensive programming: if the overlap is >= size, the window never "moves"
+    // (infinite loop). Failing early, with a clear message, beats hanging later.
     if (this.config.overlapWords >= this.config.chunkSizeWords) {
       throw new Error(
-        'overlapWords precisa ser MENOR que chunkSizeWords (senão o chunk não avança).',
+        'overlapWords must be SMALLER than chunkSizeWords (otherwise the chunk never advances).',
       );
     }
   }
 
   chunk(document: Document): Chunk[] {
-    // 1. Normaliza: separa o texto em palavras (removendo espaços/quebras extras).
+    // 1. Normalize: split the text into words (removing extra spaces/breaks).
     const words = document.text.trim().split(/\s+/).filter(Boolean);
-    if (words.length === 0) return []; // documento vazio → nenhum chunk
+    if (words.length === 0) return []; // empty document → no chunks
 
     const { chunkSizeWords, overlapWords } = this.config;
-    const step = chunkSizeWords - overlapWords; // quanto a janela anda por passo
+    const step = chunkSizeWords - overlapWords; // how much the window moves per step
 
     const chunks: Chunk[] = [];
     let position = 0;
@@ -78,18 +76,18 @@ export class SlidingWindowChunker implements ChunkerPort {
     for (let start = 0; start < words.length; start += step) {
       const slice = words.slice(start, start + chunkSizeWords);
       chunks.push({
-        id: `${document.id}-${position}`, // ex.: "clean_code-0"
+        id: `${document.id}-${position}`, // e.g. "clean_code-0"
         documentId: document.id,
         text: slice.join(' '),
-        position, // ordem do chunk (0, 1, 2...)
-        // Carregamos a ORIGEM (nome do arquivo) junto do chunk. Assim, lá na
-        // frente, a resposta consegue CITAR a fonte exata de onde recuperou —
-        // é o requisito de rastreabilidade ("não invento") virando dado.
+        position, // chunk order (0, 1, 2...)
+        // We carry the ORIGIN (file name) along with the chunk. That way, later on,
+        // the answer can CITE the exact source it retrieved from — the traceability
+        // requirement ("don't make things up") turned into data.
         metadata: { source: document.source },
       });
       position += 1;
 
-      // Se esta janela já alcançou o fim do texto, não há mais o que fatiar.
+      // If this window already reached the end of the text, there's nothing left to slice.
       if (start + chunkSizeWords >= words.length) break;
     }
 

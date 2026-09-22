@@ -1,19 +1,19 @@
 // ============================================================================
-//  FileParser — despachante: escolhe o parser certo pela extensão do arquivo
+//  FileParser — dispatcher: picks the right parser by the file extension
 // ============================================================================
 //
-//  O PROBLEMA:
-//  Agora temos DOIS parsers (texto e PDF). O CLI não deveria ficar cheio de "if
-//  é .pdf faz isso, se é .md faz aquilo". Isso é acoplamento e repetição.
+//  THE PROBLEM:
+//  We now have TWO parsers (text and PDF). The CLI shouldn't be full of "if it's
+//  a .pdf do this, if it's .md do that". That's coupling and repetition.
 //
-//  A SOLUÇÃO (padrão de projeto):
-//  Um "despachante" que TAMBÉM implementa o `DocumentParserPort` e, por dentro,
-//  delega para o parser adequado conforme a extensão. Pra quem chama, continua
-//  sendo "um parser" só. Isso combina o padrão Composite (um objeto que agrupa
-//  outros do mesmo tipo) com o Strategy (escolhe a estratégia em tempo de execução).
+//  THE SOLUTION (design pattern):
+//  A "dispatcher" that ALSO implements `DocumentParserPort` and, internally,
+//  delegates to the right parser based on the extension. To the caller it stays
+//  "a single parser". This combines the Composite pattern (an object that groups
+//  others of the same type) with Strategy (picks the strategy at runtime).
 //
-//  BENEFÍCIO: pra suportar um novo formato (ex.: .docx) amanhã, criamos o adapter
-//  e registramos aqui — o CLI e o caso de uso não mudam NADA.
+//  BENEFIT: to support a new format tomorrow (e.g. .docx), we create the adapter
+//  and register it here — the CLI and the use case change NOTHING.
 // ============================================================================
 
 import { extname } from 'node:path';
@@ -36,12 +36,12 @@ export class FileParser implements DocumentParserPort {
     }
 
     throw new Error(
-      `FileParser não sabe ler "${ext || 'sem extensão'}". Suportados: .pdf, .md, .markdown, .txt.`,
+      `FileParser cannot read "${ext || 'no extension'}". Supported: .pdf, .md, .markdown, .txt.`,
     );
   }
 
-  /** Diz se um arquivo é suportado (útil pro CLI filtrar a pasta). */
-  static suporta(path: string): boolean {
+  /** Tells whether a file is supported (handy for the CLI to filter the folder). */
+  static supports(path: string): boolean {
     const ext = extname(path).toLowerCase();
     return ['.pdf', '.md', '.markdown', '.txt'].includes(ext);
   }
