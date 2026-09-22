@@ -11,11 +11,7 @@ import {
   FLAG_MARKER,
   DEFENSIVE_CLAUSE,
 } from '../src/core/guardrails.ts';
-import {
-  buildUserPrompt,
-  SYSTEM_PROMPT_DIRETO,
-  SYSTEM_PROMPT_GUIADO,
-} from '../src/application/answerQuestion.ts';
+import { buildUserPrompt, SYSTEM_PROMPTS } from '../src/application/answerQuestion.ts';
 import type { RetrievedContext, ScoredChunk } from '../src/core/models.ts';
 
 function ctx(texts: string[]): RetrievedContext {
@@ -53,7 +49,9 @@ test('buildUserPrompt: anota trecho com sinal de injeção', () => {
   assert.ok(prompt.includes('SRP é bom'));
 });
 
-test('os system prompts incluem a cláusula defensiva', () => {
-  assert.ok(SYSTEM_PROMPT_DIRETO.includes(DEFENSIVE_CLAUSE));
-  assert.ok(SYSTEM_PROMPT_GUIADO.includes(DEFENSIVE_CLAUSE));
+test('os system prompts incluem a cláusula defensiva (en e pt)', () => {
+  assert.ok(SYSTEM_PROMPTS.en.direct.includes(DEFENSIVE_CLAUSE));
+  assert.ok(SYSTEM_PROMPTS.en.guided.includes(DEFENSIVE_CLAUSE));
+  assert.ok(SYSTEM_PROMPTS.pt.direct.includes(DEFENSIVE_CLAUSE));
+  assert.ok(SYSTEM_PROMPTS.pt.guided.includes(DEFENSIVE_CLAUSE));
 });

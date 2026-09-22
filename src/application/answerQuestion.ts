@@ -1,27 +1,27 @@
 // ============================================================================
-//  AnswerQuestion — o CASO DE USO que junta o RAG inteiro (a resposta com fontes)
+//  AnswerQuestion — the USE CASE that ties the whole RAG together (answer + sources)
 // ============================================================================
 //
-//  ONDE ISSO MORA? Numa camada NOVA: "application" (aplicação).
-//    • core/       → tipos e lógica pura (models, ports, chunker, similarity).
-//    • adapters/   → tecnologia concreta (ler arquivo, embeddings, LLM...).
-//    • application/→ os CASOS DE USO: orquestram as peças para entregar uma
-//                    funcionalidade. É o "maestro" — não toca instrumento, mas
-//                    diz a ordem em que cada um toca.
-//  Isso é o padrão de Arquitetura Limpa/Hexagonal: o caso de uso depende só dos
-//  PORTS (interfaces), nunca das implementações. Por isso conseguimos testá-lo
-//  com dublês (FakeEmbedder, FakeLLM) sem tocar em rede nem em modelo de verdade.
+//  WHERE DOES THIS LIVE? In a dedicated layer: "application".
+//    • core/       → types and pure logic (models, ports, chunker, similarity).
+//    • adapters/   → concrete tech (reading files, embeddings, LLM...).
+//    • application/→ the USE CASES: they orchestrate the pieces to deliver a
+//                    feature. It's the "conductor" — plays no instrument, but
+//                    decides the order in which each one plays.
+//  This is the Clean/Hexagonal Architecture pattern: the use case depends only on
+//  PORTS (interfaces), never on implementations. That's why we can test it with
+//  doubles (FakeEmbedder, FakeLLM) without touching the network or a real model.
 //
-//  O FLUXO DO RAG, PASSO A PASSO (é o que o método execute faz):
-//    1. RETRIEVAL:   vetoriza a pergunta → busca os chunks mais parecidos.
-//    2. AUGMENTATION: monta um prompt "aterrado" (grounded) só com esse contexto.
-//    3. GENERATION:  o LLM responde USANDO o contexto — e nós devolvemos, junto,
-//                    as FONTES de onde a informação veio (rastreabilidade).
+//  THE RAG FLOW, STEP BY STEP (what execute() does):
+//    1. RETRIEVAL:    embed the question → fetch the most similar chunks.
+//    2. AUGMENTATION: build a "grounded" prompt from that context only.
+//    3. GENERATION:   the LLM answers USING the context — and we return, alongside,
+//                     the SOURCES the information came from (traceability).
 //
-//  O CORAÇÃO DO "NÃO INVENTO":
-//  O system prompt ORDENA o modelo a responder somente com base no contexto e a
-//  admitir quando não sabe. E, independentemente do texto, sempre devolvemos as
-//  `sources` reais dos chunks recuperados — para você poder conferir a origem.
+//  THE HEART OF "DON'T MAKE THINGS UP":
+//  The system prompt ORDERS the model to answer only from the context and to admit
+//  when it doesn't know. And, regardless of the text, we always return the real
+//  `sources` of the retrieved chunks — so you can check the origin.
 // ============================================================================
 
 import type { Answer, RetrievedContext, ScoredChunk, Source, Turn } from '../core/models.ts';
@@ -42,64 +42,100 @@ import {
   detectInjection,
 } from '../core/guardrails.ts';
 
-/** As dependências do caso de uso — todas são PORTS (interfaces), não implementações. */
+/** The use case's dependencies — all PORTS (interfaces), not implementations. */
 export interface AnswerQuestionDeps {
   readonly embedder: EmbedderPort;
   readonly store: VectorStorePort;
   readonly llm: LLMPort;
-  readonly topK?: number; // quantos chunks recuperar (padrão: 4)
-  readonly mode?: MentorMode; // postura do mentor (padrão: 'guiado')
-  readonly memory?: MemoryPort; // opcional: dá memória à conversa (Etapa 8)
-  readonly historyLimit?: number; // quantos turnos passados incluir (padrão: 6)
-  readonly profile?: ProfilePort; // opcional: registra o perfil de estudo (Etapa 10)
-  readonly maxQuestionLen?: number; // teto do tamanho da pergunta (Etapa 12)
-  readonly tracer?: TracerPort; // opcional: observabilidade por spans (Etapa 13)
+  readonly topK?: number; // how many chunks to retrieve (default: 4)
+  readonly mode?: MentorMode; // mentor stance (default: 'guided')
+  readonly lang?: MentorLang; // answer language (default: 'en') — Step 18
+  readonly memory?: MemoryPort; // optional: gives the conversation memory (Step 8)
+  readonly historyLimit?: number; // how many past turns to include (default: 6)
+  readonly profile?: ProfilePort; // optional: records the study profile (Step 10)
+  readonly maxQuestionLen?: number; // cap on the question length (Step 12)
+  readonly tracer?: TracerPort; // optional: span-based observability (Step 13)
 }
 
-// O mentor tem dois "jeitos de responder" (modos). Ambos são aterrados no
-// contexto e citam as fontes — o que muda é a POSTURA pedagógica.
+/** The mentor's available stances. */
+export type MentorMode = 'guided' | 'direct';
+/** The answer language (Step 18). */
+export type MentorLang = 'en' | 'pt';
 
-/** Modo DIRETO: entrega a explicação pronta (bom quando você só quer a info). */
-export const SYSTEM_PROMPT_DIRETO = [
-  'Você é um mentor de programação. Responda em português, de forma didática.',
-  'Regras OBRIGATÓRIAS:',
-  '1. Responda SOMENTE com base no CONTEXTO fornecido abaixo.',
-  '2. Se a resposta não estiver no contexto, diga claramente: "Não encontrei isso na base de conhecimento." Não invente.',
-  '3. Ao usar uma informação, cite o número da fonte correspondente, ex.: [1].',
-  DEFENSIVE_CLAUSE, // Etapa 14: contexto é dado, não instrução
-].join('\n');
+// The "I couldn't find it" sentence, per language. Used verbatim by the prompts.
+const NOT_FOUND: Record<MentorLang, string> = {
+  en: 'I could not find this in the knowledge base.',
+  pt: 'Não encontrei isso na base de conhecimento.',
+};
+
+// The mentor has two "ways of answering" (modes). Both are grounded in the context
+// and cite the sources — what changes is the PEDAGOGICAL stance. Each mode also
+// comes in two languages (Step 18), selected by `lang`.
+
+/** DIRECT mode: hands over the finished explanation (good when you just want the info). */
+function directPrompt(lang: MentorLang): string {
+  const en = [
+    'You are a programming mentor. Reply in American English, in a didactic way.',
+    'MANDATORY rules:',
+    '1. Answer ONLY based on the CONTEXT provided below.',
+    `2. If the answer is not in the context, clearly say: "${NOT_FOUND.en}" Do not make things up.`,
+    '3. When you use a piece of information, cite the corresponding source number, e.g. [1].',
+    DEFENSIVE_CLAUSE, // Step 14: context is data, not instructions
+  ];
+  const pt = [
+    'Você é um mentor de programação. Responda em português, de forma didática.',
+    'Regras OBRIGATÓRIAS:',
+    '1. Responda SOMENTE com base no CONTEXTO fornecido abaixo.',
+    `2. Se a resposta não estiver no contexto, diga claramente: "${NOT_FOUND.pt}" Não invente.`,
+    '3. Ao usar uma informação, cite o número da fonte correspondente, ex.: [1].',
+    DEFENSIVE_CLAUSE,
+  ];
+  return (lang === 'pt' ? pt : en).join('\n');
+}
 
 /**
- * Modo GUIADO (socrático): em vez de entregar tudo, o mentor te conduz — faz uma
- * pergunta, dá uma dica da fonte e te convida a tentar. Só revela se você pedir.
- * É a postura que MAIS ensina: você constrói o entendimento em vez de só receber.
+ * GUIDED mode (Socratic): instead of handing everything over, the mentor leads you
+ * — asks a question, gives a hint from the source, and invites you to try. It only
+ * reveals if you ask. It's the stance that teaches MOST: you build the understanding.
  */
-export const SYSTEM_PROMPT_GUIADO = [
-  'Você é um mentor socrático de programação. Fale em português, com tom acolhedor e direto. Seja breve.',
-  'Regras OBRIGATÓRIAS:',
-  '1. Responda SOMENTE com base no CONTEXTO fornecido abaixo. Se a resposta não estiver nele, diga: "Não encontrei isso na base de conhecimento." Não invente.',
-  '2. NÃO entregue a resposta pronta de imediato. Comece com UMA pergunta que faça o aluno pensar sobre o problema.',
-  '3. Depois, dê UMA dica curta ancorada no contexto, citando a fonte usada (ex.: [1]) — aponte o caminho sem revelar tudo.',
-  '4. Convide o aluno a tentar: peça que ele diga o que acha ou tente responder.',
-  '5. EXCEÇÃO: se o aluno pedir explicitamente a resposta (ex.: "me dá a resposta", "explica logo", "estou travado"), aí sim explique de forma completa, ainda citando as fontes [n].',
-  DEFENSIVE_CLAUSE, // Etapa 14: contexto é dado, não instrução
-].join('\n');
+function guidedPrompt(lang: MentorLang): string {
+  const en = [
+    'You are a Socratic programming mentor. Reply in American English, with a warm, direct tone. Be brief.',
+    'MANDATORY rules:',
+    `1. Answer ONLY based on the CONTEXT provided below. If the answer is not there, say: "${NOT_FOUND.en}" Do not make things up.`,
+    '2. Do NOT hand over the full answer right away. Start with ONE question that makes the student think about the problem.',
+    '3. Then give ONE short hint anchored in the context, citing the source used (e.g. [1]) — point the way without revealing everything.',
+    '4. Invite the student to try: ask them to say what they think or to attempt an answer.',
+    '5. EXCEPTION: if the student explicitly asks for the answer (e.g. "just give me the answer", "explain it already", "I am stuck"), then explain fully, still citing the sources [n].',
+    DEFENSIVE_CLAUSE,
+  ];
+  const pt = [
+    'Você é um mentor socrático de programação. Fale em português, com tom acolhedor e direto. Seja breve.',
+    'Regras OBRIGATÓRIAS:',
+    `1. Responda SOMENTE com base no CONTEXTO fornecido abaixo. Se a resposta não estiver nele, diga: "${NOT_FOUND.pt}" Não invente.`,
+    '2. NÃO entregue a resposta pronta de imediato. Comece com UMA pergunta que faça o aluno pensar sobre o problema.',
+    '3. Depois, dê UMA dica curta ancorada no contexto, citando a fonte usada (ex.: [1]) — aponte o caminho sem revelar tudo.',
+    '4. Convide o aluno a tentar: peça que ele diga o que acha ou tente responder.',
+    '5. EXCEÇÃO: se o aluno pedir explicitamente a resposta (ex.: "me dá a resposta", "explica logo", "estou travado"), aí sim explique de forma completa, ainda citando as fontes [n].',
+    DEFENSIVE_CLAUSE,
+  ];
+  return (lang === 'pt' ? pt : en).join('\n');
+}
 
-/** Os modos disponíveis do mentor. */
-export type MentorMode = 'guiado' | 'direto';
-
-const PROMPTS: Record<MentorMode, string> = {
-  guiado: SYSTEM_PROMPT_GUIADO,
-  direto: SYSTEM_PROMPT_DIRETO,
+/** System prompts by [language][mode]. */
+export const SYSTEM_PROMPTS: Record<MentorLang, Record<MentorMode, string>> = {
+  en: { guided: guidedPrompt('en'), direct: directPrompt('en') },
+  pt: { guided: guidedPrompt('pt'), direct: directPrompt('pt') },
 };
 
 export class AnswerQuestion {
-  // Declaramos os campos explicitamente (em vez de "parameter properties" tipo
-  // `constructor(private deps...)`) porque o Node em modo strip-only NÃO aceita
-  // aquele atalho — ele só remove tipos, não reescreve código.
+  // We declare the fields explicitly (instead of "parameter properties" like
+  // `constructor(private deps...)`) because Node in strip-only mode does NOT accept
+  // that shortcut — it only removes types, it doesn't rewrite code.
   private readonly deps: AnswerQuestionDeps;
   private readonly topK: number;
   private readonly historyLimit: number;
+  private readonly mode: MentorMode;
   private readonly systemPrompt: string;
   private readonly maxQuestionLen?: number;
   private readonly tracer: TracerPort;
@@ -108,64 +144,65 @@ export class AnswerQuestion {
     this.deps = deps;
     this.topK = deps.topK ?? 4;
     this.historyLimit = deps.historyLimit ?? 6;
-    this.systemPrompt = PROMPTS[deps.mode ?? 'guiado']; // padrão: socrático guiado
+    this.mode = deps.mode ?? 'guided'; // default: Socratic guided
+    this.systemPrompt = SYSTEM_PROMPTS[deps.lang ?? 'en'][this.mode]; // default language: English
     this.maxQuestionLen = deps.maxQuestionLen;
-    this.tracer = deps.tracer ?? new NoopTracer(); // sem tracer → não observa (custo zero)
+    this.tracer = deps.tracer ?? new NoopTracer(); // no tracer → no observability (zero cost)
   }
 
   /**
-   * Responde a `question`. Se `sessionId` for informado E houver memória, o
-   * mentor LEMBRA da conversa: injeta o histórico no prompt e grava os turnos.
-   * Sem isso, funciona como antes (uma pergunta isolada).
+   * Answers `question`. If `sessionId` is provided AND there is memory, the mentor
+   * REMEMBERS the conversation: it injects the history into the prompt and records
+   * the turns. Without it, it works as a single isolated question.
    */
   async execute(question: string, sessionId?: string): Promise<Answer> {
-    // 0. VALIDAÇÃO — recusa pergunta vazia/gigante cedo (Etapa 12) e normaliza.
+    // 0. VALIDATION — reject an empty/huge question early (Step 12) and normalize.
     question = validateQuestion(question, this.maxQuestionLen);
 
-    const usarMemoria = Boolean(this.deps.memory && sessionId);
+    const useMemory = Boolean(this.deps.memory && sessionId);
 
-    // 0. MEMÓRIA — recupera os últimos turnos da conversa (se houver).
-    const history: Turn[] = usarMemoria
+    // 0. MEMORY — fetch the last turns of the conversation (if any).
+    const history: Turn[] = useMemory
       ? await this.deps.memory!.history(sessionId!, this.historyLimit)
       : [];
 
-    // 1. RETRIEVAL — vetoriza a pergunta e busca os chunks mais próximos.
-    //    (envolto num span → medimos tempo e nº de fontes recuperadas)
+    // 1. RETRIEVAL — embed the question and fetch the nearest chunks.
+    //    (wrapped in a span → we measure time and number of retrieved sources)
     const spanRetrieval = this.tracer.startSpan('retrieval', { topK: this.topK });
     const [queryVector] = await this.deps.embedder.embed([question]);
     const context = await this.deps.store.search(queryVector, this.topK);
     spanRetrieval.setAttribute('chunks', context.chunks.length);
-    // Guardrail (Etapa 14): quantos trechos recuperados têm sinal de injeção?
-    const suspeitos = context.chunks.filter((sc) => detectInjection(sc.chunk.text).length > 0).length;
-    spanRetrieval.setAttribute('suspeitos', suspeitos);
+    // Guardrail (Step 14): how many retrieved snippets show signs of injection?
+    const suspicious = context.chunks.filter((sc) => detectInjection(sc.chunk.text).length > 0).length;
+    spanRetrieval.setAttribute('suspicious', suspicious);
     spanRetrieval.end();
 
-    // 2. AUGMENTATION — monta o prompt com o HISTÓRICO + o contexto recuperado.
+    // 2. AUGMENTATION — build the prompt with the HISTORY + the retrieved context.
     const userPrompt = buildUserPrompt(question, context, history);
 
-    // 3. GENERATION — o LLM gera a resposta seguindo as regras do modo escolhido.
-    const spanGen = this.tracer.startSpan('generation', { mode: this.deps.mode ?? 'guiado' });
+    // 3. GENERATION — the LLM produces the answer following the chosen mode's rules.
+    const spanGen = this.tracer.startSpan('generation', { mode: this.mode });
     const text = await this.deps.llm.generate(this.systemPrompt, userPrompt);
     spanGen.setAttribute('respLen', text.length);
     spanGen.end();
 
-    // 4. FONTES — sempre devolvemos de onde veio o contexto (rastreabilidade).
+    // 4. SOURCES — we always return where the context came from (traceability).
     const sources = context.chunks.map(toSource);
 
-    // 5. MEMÓRIA — grava o turno do aluno e o do mentor, pra lembrar depois.
-    if (usarMemoria) {
-      const agora = new Date().toISOString();
-      await this.deps.memory!.append(sessionId!, { role: 'aluno', text: question, at: agora });
-      await this.deps.memory!.append(sessionId!, { role: 'mentor', text, at: agora });
+    // 5. MEMORY — record the student's turn and the mentor's turn, to remember later.
+    if (useMemory) {
+      const now = new Date().toISOString();
+      await this.deps.memory!.append(sessionId!, { role: 'student', text: question, at: now });
+      await this.deps.memory!.append(sessionId!, { role: 'mentor', text, at: now });
     }
 
-    // 6. PERFIL — registra O QUE o aluno estudou (pergunta + fontes tocadas).
-    //    Diferente da memória (o diálogo), o perfil é a visão agregada do estudo.
-    //    Usamos a mesma identidade da sessão como "id do aluno".
+    // 6. PROFILE — record WHAT the student studied (question + sources touched).
+    //    Unlike memory (the dialogue), the profile is the aggregate view of study.
+    //    We use the same session identity as the "student id".
     if (this.deps.profile) {
       const studentId = sessionId ?? 'default';
-      const fontes = [...new Set(sources.map((s) => s.source))]; // fontes únicas
-      await this.deps.profile.record(studentId, question, fontes);
+      const uniqueSources = [...new Set(sources.map((s) => s.source))];
+      await this.deps.profile.record(studentId, question, uniqueSources);
     }
 
     return { text, sources };
@@ -173,43 +210,43 @@ export class AnswerQuestion {
 }
 
 /**
- * Monta o prompt do usuário juntando a pergunta + o contexto recuperado.
- * Numeramos os trechos ([1], [2]...) para o modelo conseguir citar a fonte.
- * É uma função PURA (mesma entrada → mesma saída) → fácil de testar.
+ * Builds the user prompt by joining the question + the retrieved context.
+ * We number the snippets ([1], [2]...) so the model can cite the source.
+ * It's a PURE function (same input → same output) → easy to test.
  */
 export function buildUserPrompt(
   question: string,
   context: RetrievedContext,
   history: Turn[] = [],
 ): string {
-  const partes: string[] = [];
+  const parts: string[] = [];
 
-  // HISTÓRICO (se houver) — dá continuidade ao diálogo.
+  // HISTORY (if any) — gives continuity to the dialogue.
   if (history.length > 0) {
-    const conversa = history.map((t) => `${t.role.toUpperCase()}: ${t.text}`).join('\n');
-    partes.push(`HISTÓRICO DA CONVERSA:\n${conversa}`);
+    const conversation = history.map((t) => `${t.role.toUpperCase()}: ${t.text}`).join('\n');
+    parts.push(`CONVERSATION HISTORY:\n${conversation}`);
   }
 
-  // CONTEXTO recuperado da base — DELIMITADO (Etapa 14): tudo entre os marcadores
-  // é DADO não-confiável. Trechos com sinais de injeção ganham um aviso visível.
+  // CONTEXT retrieved from the base — DELIMITED (Step 14): everything between the
+  // markers is UNTRUSTED DATA. Snippets with injection signs get a visible warning.
   if (context.chunks.length === 0) {
-    partes.push(`CONTEXTO:\n${CONTEXT_OPEN}\n(nenhum trecho encontrado)\n${CONTEXT_CLOSE}`);
+    parts.push(`CONTEXT:\n${CONTEXT_OPEN}\n(no snippet found)\n${CONTEXT_CLOSE}`);
   } else {
-    const trechos = context.chunks
+    const snippets = context.chunks
       .map((sc, i) => {
-        const suspeito = detectInjection(sc.chunk.text).length > 0;
-        const aviso = suspeito ? `${FLAG_MARKER}\n` : '';
-        return `[${i + 1}] (fonte: ${sourceName(sc)})\n${aviso}${sc.chunk.text}`;
+        const suspicious = detectInjection(sc.chunk.text).length > 0;
+        const warning = suspicious ? `${FLAG_MARKER}\n` : '';
+        return `[${i + 1}] (source: ${sourceName(sc)})\n${warning}${sc.chunk.text}`;
       })
       .join('\n\n');
-    partes.push(`CONTEXTO:\n${CONTEXT_OPEN}\n${trechos}\n${CONTEXT_CLOSE}`);
+    parts.push(`CONTEXT:\n${CONTEXT_OPEN}\n${snippets}\n${CONTEXT_CLOSE}`);
   }
 
-  partes.push(`PERGUNTA: ${question}`);
-  return partes.join('\n\n');
+  parts.push(`QUESTION: ${question}`);
+  return parts.join('\n\n');
 }
 
-/** Converte um ScoredChunk na Source citável (com o nome do arquivo de origem). */
+/** Converts a ScoredChunk into a citable Source (with the origin file name). */
 function toSource(sc: ScoredChunk): Source {
   return {
     documentId: sc.chunk.documentId,
@@ -218,7 +255,7 @@ function toSource(sc: ScoredChunk): Source {
   };
 }
 
-/** Recupera o nome da origem guardado no metadata do chunk (fallback: documentId). */
+/** Gets the source name stored in the chunk metadata (fallback: documentId). */
 function sourceName(sc: ScoredChunk): string {
   const fromMeta = sc.chunk.metadata?.source;
   return typeof fromMeta === 'string' ? fromMeta : sc.chunk.documentId;

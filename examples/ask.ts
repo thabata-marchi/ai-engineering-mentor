@@ -24,6 +24,7 @@ async function main() {
     llm: mentor.llm,
     topK: mentor.topK,
     mode: mentor.mode,
+    lang: mentor.lang,
   });
 
   console.log(`🎓 Modo: ${mentor.mode} | 🗄️  Store: ${mentor.usingMongo ? 'MongoDB' : 'memória'}`);

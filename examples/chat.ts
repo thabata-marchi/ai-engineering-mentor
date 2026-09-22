@@ -29,6 +29,7 @@ async function main() {
     profile: mentor.profile, // <- registra o perfil de estudo (Etapa 10)
     topK: mentor.topK,
     mode: mentor.mode,
+    lang: mentor.lang,
   });
 
   // A sessão identifica a conversa. Fixa por padrão, então o histórico persiste

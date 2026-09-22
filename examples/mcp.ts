@@ -30,6 +30,7 @@ async function main() {
     profile: mentor.profile, // <- registra o perfil de estudo (Etapa 10)
     topK: mentor.topK,
     mode: mentor.mode,
+    lang: mentor.lang,
   });
 
   // Passamos o perfil também ao servidor → habilita a tool `meu_progresso`.

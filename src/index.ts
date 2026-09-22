@@ -33,8 +33,8 @@ export { scoreCase, aggregate } from './core/eval.ts';
 export type { GoldenCase, CaseResult, EvalReport } from './core/eval.ts';
 
 // Casos de uso.
-export { AnswerQuestion, buildUserPrompt } from './application/answerQuestion.ts';
-export type { AnswerQuestionDeps, MentorMode } from './application/answerQuestion.ts';
+export { AnswerQuestion, buildUserPrompt, SYSTEM_PROMPTS } from './application/answerQuestion.ts';
+export type { AnswerQuestionDeps, MentorMode, MentorLang } from './application/answerQuestion.ts';
 export { MentorAgent, SYSTEM_PROMPT_AGENTE } from './application/mentorAgent.ts';
 export type { MentorAgentDeps } from './application/mentorAgent.ts';
 

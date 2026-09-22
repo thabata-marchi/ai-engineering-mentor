@@ -73,13 +73,13 @@ export interface Answer {
 }
 
 /**
- * Um "turno" da conversa: quem falou (aluno ou mentor) e o quê. A memória do
- * mentor é uma lista de turnos — é isso que permite o diálogo ter continuidade.
+ * A conversation "turn": who spoke (student or mentor) and what. The mentor's
+ * memory is a list of turns — that is what lets the dialogue have continuity.
  */
 export interface Turn {
-  readonly role: 'aluno' | 'mentor';
+  readonly role: 'student' | 'mentor';
   readonly text: string;
-  readonly at: string; // data/hora em ISO (ex.: "2026-09-11T14:00:00.000Z")
+  readonly at: string; // ISO date/time (e.g. "2026-09-11T14:00:00.000Z")
 }
 
 /** Um registro do que o aluno estudou: a pergunta feita + as fontes tocadas. */

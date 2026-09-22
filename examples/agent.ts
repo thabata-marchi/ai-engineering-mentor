@@ -46,6 +46,7 @@ async function main() {
     profile: mentor.profile,
     topK: mentor.topK,
     mode: mentor.mode,
+    lang: mentor.lang,
   });
   const server = createMentorMcpServer(useCase, mentor.profile);
 

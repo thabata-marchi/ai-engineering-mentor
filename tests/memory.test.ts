@@ -14,9 +14,9 @@ import { FakeLLM } from './helpers/fakeLLM.ts';
 
 test('InMemoryMemory: append + history mantém a ordem e respeita o limite', async () => {
   const mem = new InMemoryMemory();
-  await mem.append('s1', { role: 'aluno', text: 'oi', at: '2026-01-01T00:00:00Z' });
+  await mem.append('s1', { role: 'student', text: 'oi', at: '2026-01-01T00:00:00Z' });
   await mem.append('s1', { role: 'mentor', text: 'olá', at: '2026-01-01T00:00:01Z' });
-  await mem.append('s1', { role: 'aluno', text: 'tchau', at: '2026-01-01T00:00:02Z' });
+  await mem.append('s1', { role: 'student', text: 'tchau', at: '2026-01-01T00:00:02Z' });
 
   const tudo = await mem.history('s1');
   assert.deepEqual(tudo.map((t) => t.text), ['oi', 'olá', 'tchau']);
@@ -52,7 +52,7 @@ test('mentor com memória: grava os turnos da conversa', async () => {
 
   const turns = await mem.history('sessao-A');
   assert.equal(turns.length, 2); // pergunta do aluno + resposta do mentor
-  assert.equal(turns[0].role, 'aluno');
+  assert.equal(turns[0].role, 'student');
   assert.equal(turns[0].text, 'o que é SRP?');
   assert.equal(turns[1].role, 'mentor');
   assert.equal(turns[1].text, 'resposta 1');
@@ -67,7 +67,7 @@ test('mentor com memória: injeta o histórico no prompt do 2º turno', async ()
   await useCase.execute('e agora?', 'sessao-B');
 
   // No 2º turno, o prompt enviado ao LLM deve conter o histórico da 1ª troca.
-  assert.match(llm.lastUserPrompt, /HISTÓRICO DA CONVERSA/);
+  assert.match(llm.lastUserPrompt, /CONVERSATION HISTORY/);
   assert.match(llm.lastUserPrompt, /primeira pergunta/);
 });
 

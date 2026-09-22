@@ -66,31 +66,41 @@ test('o contexto recuperado é REALMENTE enviado ao LLM (grounding)', async () =
 
   // O prompt enviado ao LLM deve conter o trecho recuperado e a pergunta.
   assert.match(llm.lastUserPrompt, /single responsibility principle/i);
-  assert.match(llm.lastUserPrompt, /PERGUNTA:/);
-  // E as regras do "não invento" vão no system prompt.
-  assert.match(llm.lastSystemPrompt, /SOMENTE com base no CONTEXTO/i);
+  assert.match(llm.lastUserPrompt, /QUESTION:/);
+  // E as regras do "não invento" vão no system prompt (agora em inglês por padrão).
+  assert.match(llm.lastSystemPrompt, /ONLY based on the CONTEXT/i);
 });
 
 test('modo guiado (padrão) usa o prompt socrático', async () => {
   const { embedder, store } = await setup();
   const llm = new FakeLLM();
 
-  const useCase = new AnswerQuestion({ embedder, store, llm, topK: 1 }); // sem mode = guiado
+  const useCase = new AnswerQuestion({ embedder, store, llm, topK: 1 }); // sem mode = guided
   await useCase.execute('o que é repository?');
 
   // O prompt guiado NÃO entrega a resposta pronta — pede pra começar com pergunta.
-  assert.match(llm.lastSystemPrompt, /NÃO entregue a resposta pronta/i);
+  assert.match(llm.lastSystemPrompt, /Do NOT hand over the full answer/i);
 });
 
 test('modo direto usa o prompt de resposta pronta', async () => {
   const { embedder, store } = await setup();
   const llm = new FakeLLM();
 
-  const useCase = new AnswerQuestion({ embedder, store, llm, topK: 1, mode: 'direto' });
+  const useCase = new AnswerQuestion({ embedder, store, llm, topK: 1, mode: 'direct' });
   await useCase.execute('o que é repository?');
 
   // No modo direto não há a regra socrática de "não entregar pronto".
-  assert.doesNotMatch(llm.lastSystemPrompt, /NÃO entregue a resposta pronta/i);
+  assert.doesNotMatch(llm.lastSystemPrompt, /Do NOT hand over the full answer/i);
+});
+
+test('lang: pt faz o system prompt pedir resposta em português', async () => {
+  const { embedder, store } = await setup();
+  const llm = new FakeLLM();
+
+  const useCase = new AnswerQuestion({ embedder, store, llm, topK: 1, lang: 'pt' });
+  await useCase.execute('o que é repository?');
+
+  assert.match(llm.lastSystemPrompt, /Responda em português|Fale em português/i);
 });
 
 test('sem contexto (store vazio) → sem fontes, mas ainda responde', async () => {
@@ -102,6 +112,6 @@ test('sem contexto (store vazio) → sem fontes, mas ainda responde', async () =
   const answer = await useCase.execute('qualquer pergunta');
 
   assert.equal(answer.sources.length, 0);
-  assert.match(llm.lastUserPrompt, /nenhum trecho encontrado/i);
+  assert.match(llm.lastUserPrompt, /no snippet found/i);
   assert.equal(answer.text, 'Não encontrei isso na base de conhecimento.');
 });

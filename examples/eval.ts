@@ -44,7 +44,8 @@ async function main() {
     store: mentor.store,
     llm: mentor.llm,
     topK: mentor.topK,
-    mode: 'direto', // explicativo → métricas de menção/citação fazem sentido
+    mode: 'direct', // explanatory → mention/citation metrics make sense
+    lang: mentor.lang,
     tracer: process.env.EVAL_TRACE ? new ConsoleTracer() : undefined,
   });
 

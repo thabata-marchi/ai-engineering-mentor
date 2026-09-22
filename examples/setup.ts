@@ -25,7 +25,7 @@ import { RateLimitedLLM } from '../src/adapters/rateLimitedLLM.ts';
 import { RateLimiter } from '../src/core/rateLimiter.ts';
 import { loadIndex, saveIndex } from '../src/adapters/indexCache.ts';
 import type { LLMPort, MemoryPort, ProfilePort, VectorStorePort } from '../src/core/ports.ts';
-import type { MentorMode } from '../src/application/answerQuestion.ts';
+import type { MentorMode, MentorLang } from '../src/application/answerQuestion.ts';
 
 const CACHE_PATH = resolve(process.cwd(), 'data/vectorstore/index.json');
 const CHUNK_CONFIG = { chunkSizeWords: 200, overlapWords: 30 };
@@ -50,6 +50,7 @@ export interface Mentor {
   readonly limiter: RateLimiter; // compartilhado (RAG + agente) p/ proteger a cota
   readonly topK: number;
   readonly mode: MentorMode;
+  readonly lang: MentorLang; // answer language (Step 18)
   readonly usingMongo: boolean;
   cleanup(): Promise<void>;
 }
@@ -99,7 +100,11 @@ export async function setupMentor(): Promise<Mentor> {
   }
 
   const topK = process.env.TOP_K ? Number(process.env.TOP_K) : 5;
-  const mode: MentorMode = process.env.MODE === 'direto' ? 'direto' : 'guiado';
+  // MODE: 'guided' (default) or 'direct'. Accepts the old PT values as aliases.
+  const rawMode = process.env.MODE;
+  const mode: MentorMode = rawMode === 'direct' || rawMode === 'direto' ? 'direct' : 'guided';
+  // MENTOR_LANG: 'en' (default) or 'pt' — the language the mentor answers in (Step 18).
+  const lang: MentorLang = process.env.MENTOR_LANG === 'pt' ? 'pt' : 'en';
 
   return {
     embedder,
@@ -110,6 +115,7 @@ export async function setupMentor(): Promise<Mentor> {
     limiter,
     topK,
     mode,
+    lang,
     usingMongo,
     async cleanup() {
       await embedder.dispose();
