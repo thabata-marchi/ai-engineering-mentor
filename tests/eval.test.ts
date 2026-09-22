@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { scoreCase, aggregate, type GoldenCase, type CaseResult } from '../src/core/eval.ts';
-import { parseNota } from '../src/adapters/llmJudge.ts';
+import { parseScore } from '../src/adapters/llmJudge.ts';
 import type { Answer } from '../src/core/models.ts';
 
 function answer(text: string, sources: string[]): Answer {
@@ -75,9 +75,9 @@ test('aggregate: calcula a taxa de resistência ignorando não-aplicáveis', () 
   assert.equal(aggregate(results).resistanceRate, 0.5); // 1 de 2 aplicáveis
 });
 
-test('parseNota: extrai o número e limita a [0,1]', () => {
-  assert.equal(parseNota('0.8'), 0.8);
-  assert.equal(parseNota('Nota: 1'), 1);
-  assert.equal(parseNota('acho que 2.5'), 1); // limita a 1
-  assert.equal(parseNota('sem número'), 0); // fallback
+test('parseScore: extrai o número e limita a [0,1]', () => {
+  assert.equal(parseScore('0.8'), 0.8);
+  assert.equal(parseScore('Nota: 1'), 1);
+  assert.equal(parseScore('acho que 2.5'), 1); // limita a 1
+  assert.equal(parseScore('sem número'), 0); // fallback
 });

@@ -1,13 +1,13 @@
 // ============================================================================
-//  MongoMemory — memória da conversa PERSISTIDA no MongoDB (Etapa 8)
+//  MongoMemory — conversation memory PERSISTED in MongoDB (Step 8)
 // ============================================================================
 //
-//  Mesmo contrato do InMemoryMemory (o MemoryPort), mas os turnos vão para uma
-//  coleção do Mongo (`conversations`). Assim o mentor LEMBRA da conversa entre
-//  execuções — e você consegue VER o histórico no Mongo Express.
+//  Same contract as InMemoryMemory (the MemoryPort), but the turns go to a Mongo
+//  collection (`conversations`). This way the mentor REMEMBERS the conversation
+//  between runs — and you can SEE the history in Mongo Express.
 //
-//  Guardamos UM DOCUMENTO POR TURNO: { sessionId, role, text, at }. A ordem é
-//  garantida pelo campo `at` (data/hora). Simples e rastreável.
+//  We store ONE DOCUMENT PER TURN: { sessionId, role, text, at }. The order is
+//  guaranteed by the `at` field (date/time). Simple and traceable.
 // ============================================================================
 
 import { MongoClient, type Collection } from 'mongodb';
@@ -21,8 +21,8 @@ interface TurnDoc extends Turn {
 
 export interface MongoMemoryConfig {
   readonly url: string;
-  readonly dbName?: string; // padrão: ai_mentor
-  readonly collectionName?: string; // padrão: conversations
+  readonly dbName?: string; // default: ai_mentor
+  readonly collectionName?: string; // default: conversations
 }
 
 export class MongoMemory implements MemoryPort {
@@ -52,17 +52,17 @@ export class MongoMemory implements MemoryPort {
 
   async history(sessionId: string, limit?: number): Promise<Turn[]> {
     const col = await this.collection();
-    // Ordena por data crescente; se houver limite, pega os últimos N (mais recentes)
-    // e depois devolve em ordem cronológica.
+    // Sort by ascending date; if there is a limit, take the last N (most recent)
+    // and then return them in chronological order.
     const cursor = col.find({ sessionId }, { projection: { _id: 0, sessionId: 0 } });
     if (limit) {
-      const recentes = await cursor.sort({ at: -1 }).limit(limit).toArray();
-      return recentes.reverse();
+      const recent = await cursor.sort({ at: -1 }).limit(limit).toArray();
+      return recent.reverse();
     }
     return cursor.sort({ at: 1 }).toArray();
   }
 
-  /** Fecha a conexão — chamar ao encerrar o programa. */
+  /** Closes the connection — call it when shutting down the program. */
   async close(): Promise<void> {
     if (this.connected) {
       await this.client.close();

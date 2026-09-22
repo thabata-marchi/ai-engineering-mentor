@@ -1,61 +1,61 @@
 // ============================================================================
-//  InMemoryProfile — perfil de aprendizado guardado só na RAM (não persiste)
+//  InMemoryProfile — learning profile kept only in RAM (does not persist)
 // ============================================================================
 //
-//  Adapter mais simples do ProfilePort: acumula os registros de estudo (pergunta
-//  + fontes tocadas) num array em memória. Serve como PADRÃO (quando não há
-//  Mongo) e para os TESTES. Quando o programa fecha, o histórico some — para
-//  lembrar entre execuções, usamos o MongoProfile.
+//  The simplest ProfilePort adapter: it accumulates the study records (question +
+//  sources touched) in an in-memory array. It serves as the DEFAULT (when there is
+//  no Mongo) and for the TESTS. When the program closes, the history is gone — to
+//  remember between runs, we use MongoProfile.
 //
-//  A lógica de RESUMO (contar por fonte, pegar as últimas perguntas) mora aqui,
-//  mas repare que ela é idêntica no MongoProfile: ambos respondem ao mesmo
-//  contrato (ProfilePort). Quem chama não sabe — nem precisa saber — qual dos
-//  dois está por baixo. Isso é a Inversão de Dependência na prática.
+//  The SUMMARY logic (count by source, take the latest questions) lives here, but
+//  note it's identical in MongoProfile: both answer the same contract (ProfilePort).
+//  The caller doesn't know — nor needs to know — which of the two is underneath.
+//  That's Dependency Inversion in practice.
 // ============================================================================
 
 import type { ProfileSummary, StudyRecord } from '../core/models.ts';
 import type { ProfilePort } from '../core/ports.ts';
 
-const ULTIMAS_LIMIT = 5; // quantas perguntas recentes o resumo mostra
+const RECENT_LIMIT = 5; // how many recent questions the summary shows
 
 export class InMemoryProfile implements ProfilePort {
-  // studentId → lista de registros de estudo (em ordem de chegada).
+  // studentId → list of study records (in arrival order).
   private readonly students = new Map<string, StudyRecord[]>();
 
   async record(studentId: string, question: string, sources: string[]): Promise<void> {
-    const registros = this.students.get(studentId) ?? [];
-    registros.push({ question, sources, at: new Date().toISOString() });
-    this.students.set(studentId, registros);
+    const records = this.students.get(studentId) ?? [];
+    records.push({ question, sources, at: new Date().toISOString() });
+    this.students.set(studentId, records);
   }
 
   async summary(studentId: string): Promise<ProfileSummary> {
-    const registros = this.students.get(studentId) ?? [];
-    return summarize(registros);
+    const records = this.students.get(studentId) ?? [];
+    return summarize(records);
   }
 }
 
 /**
- * Agrega uma lista de registros num ProfileSummary. É uma função PURA (mesma
- * entrada → mesma saída, sem efeitos), então é trivial de testar e é
- * reaproveitada pelo MongoProfile.
+ * Aggregates a list of records into a ProfileSummary. It's a PURE function (same
+ * input → same output, no side effects), so it's trivial to test and is reused by
+ * MongoProfile.
  */
-export function summarize(registros: readonly StudyRecord[]): ProfileSummary {
-  // Conta quantas vezes cada fonte foi tocada.
-  const contagem = new Map<string, number>();
-  for (const r of registros) {
+export function summarize(records: readonly StudyRecord[]): ProfileSummary {
+  // Count how many times each source was touched.
+  const counts = new Map<string, number>();
+  for (const r of records) {
     for (const s of r.sources) {
-      contagem.set(s, (contagem.get(s) ?? 0) + 1);
+      counts.set(s, (counts.get(s) ?? 0) + 1);
     }
   }
 
-  const bySource = [...contagem.entries()]
+  const bySource = [...counts.entries()]
     .map(([source, count]) => ({ source, count }))
-    .sort((a, b) => b.count - a.count); // mais consultadas primeiro
+    .sort((a, b) => b.count - a.count); // most consulted first
 
-  const recent = registros
-    .slice(-ULTIMAS_LIMIT) // as N mais recentes
-    .reverse() // da mais nova para a mais antiga
+  const recent = records
+    .slice(-RECENT_LIMIT) // the N most recent
+    .reverse() // from newest to oldest
     .map((r) => r.question);
 
-  return { total: registros.length, bySource, recent };
+  return { total: records.length, bySource, recent };
 }

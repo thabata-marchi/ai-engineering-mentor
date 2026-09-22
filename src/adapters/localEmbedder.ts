@@ -1,49 +1,49 @@
 // ============================================================================
-//  LocalEmbedder — gera embeddings LOCALMENTE (sem API, sem custo, privado)
+//  LocalEmbedder — generates embeddings LOCALLY (no API, no cost, private)
 // ============================================================================
 //
-//  O QUE ELE FAZ?
-//  Implementa o `EmbedderPort`: recebe uma lista de textos e devolve uma lista
-//  de vetores (embeddings). Ele roda um modelo de embeddings DENTRO da sua
-//  máquina, usando a biblioteca transformers.js (@huggingface/transformers).
+//  WHAT DOES IT DO?
+//  It implements `EmbedderPort`: takes a list of texts and returns a list of
+//  vectors (embeddings). It runs an embedding model INSIDE your machine, using the
+//  transformers.js library (@huggingface/transformers).
 //
-//  POR QUE "LOCAL" (e não OpenAI)?  → decisão da Etapa 3b
-//    • grátis: não gasta chamada de API;
-//    • privado: seus textos não saem do seu computador;
-//    • offline: depois de baixar o modelo 1x, funciona sem internet.
-//  Trade-off: a 1ª execução BAIXA o modelo (~alguns MB) e o cacheia; e é um
-//  pouco mais lento que a nuvem. Para um laboratório de estudo, compensa.
-//  (Se um dia quisermos OpenAI, criamos OUTRO adapter — o núcleo nem percebe,
-//   porque ambos respeitam o mesmo `EmbedderPort`. Isso é o "D" do SOLID.)
+//  WHY "LOCAL" (and not OpenAI)?  → Step 3b decision
+//    • free: it doesn't spend an API call;
+//    • private: your texts don't leave your computer;
+//    • offline: after downloading the model once, it works without internet.
+//  Trade-off: the first run DOWNLOADS the model (~a few MB) and caches it; and it's
+//  a bit slower than the cloud. For a study lab, it pays off.
+//  (If we ever want OpenAI, we create ANOTHER adapter — the core doesn't even
+//   notice, because both honor the same `EmbedderPort`. That's the "D" of SOLID.)
 //
-//  QUAL MODELO?  Xenova/paraphrase-multilingual-MiniLM-L12-v2
-//    • "multilingual" → entende PORTUGUÊS e INGLÊS (nosso material tem os dois);
-//    • "MiniLM" → pequeno e rápido (bom p/ rodar no notebook);
-//    • gera vetores de 384 dimensões.
+//  WHICH MODEL?  Xenova/paraphrase-multilingual-MiniLM-L12-v2
+//    • "multilingual" → understands PORTUGUESE and ENGLISH (our material has both);
+//    • "MiniLM" → small and fast (good to run on a laptop);
+//    • produces 384-dimension vectors.
 //
-//  ⚠️ PRÉ-REQUISITO para rodar de verdade (na sua máquina):
+//  ⚠️ PREREQUISITE to run for real (on your machine):
 //      npm install @huggingface/transformers
-//  Os TESTES não usam este adapter (usam o FakeEmbedder), justamente para não
-//  baixar modelo nem depender de internet no CI.
+//  The TESTS don't use this adapter (they use FakeEmbedder), precisely to avoid
+//  downloading a model or depending on the internet in CI.
 // ============================================================================
 
 import type { EmbedderPort } from '../core/ports.ts';
 
-// Importa só o necessário da transformers.js.
-// (`type` no import ajuda o editor; o `pipeline` é o que roda de fato.)
+// Import only what's needed from transformers.js.
+// (`type` in the import helps the editor; `pipeline` is what actually runs.)
 import { pipeline, type FeatureExtractionPipeline } from '@huggingface/transformers';
 
 const MODEL = 'Xenova/paraphrase-multilingual-MiniLM-L12-v2';
 
-// dtype = precisão numérica com que o modelo roda:
-//   'fp32' → precisão total, mais lenta e pesada (padrão do transformers.js).
-//   'q8'   → quantizado em 8 bits: bem mais RÁPIDO e leve, com perda mínima de
-//            qualidade na busca. É a nossa escolha padrão (velocidade no estudo).
+// dtype = numeric precision the model runs with:
+//   'fp32' → full precision, slower and heavier (transformers.js default).
+//   'q8'   → 8-bit quantized: much FASTER and lighter, with minimal loss of search
+//            quality. It's our default choice (speed during study).
 export type EmbedderDtype = 'q8' | 'fp16' | 'fp32';
 
 export class LocalEmbedder implements EmbedderPort {
-  // Guardamos o "pipeline" carregado para NÃO recarregar o modelo a cada chamada.
-  // Começa nulo e só é criado na 1ª vez que precisamos (lazy loading).
+  // We keep the loaded "pipeline" so we DON'T reload the model on every call. It
+  // starts null and is created only the first time we need it (lazy loading).
   private extractor: FeatureExtractionPipeline | null = null;
   private readonly dtype: EmbedderDtype;
 
@@ -51,38 +51,38 @@ export class LocalEmbedder implements EmbedderPort {
     this.dtype = dtype;
   }
 
-  /** Carrega o modelo uma única vez (na 1ª vez, baixa e cacheia). */
+  /** Loads the model only once (on the first time, it downloads and caches). */
   private async getExtractor(): Promise<FeatureExtractionPipeline> {
-    // `??=` → só atribui se ainda for null/undefined. Ou seja: carrega 1x.
-    // As sobrecargas de `pipeline` geram uma "union complexa demais" para o TS.
-    // Encapsulamos numa assinatura simples (só tipagem; em runtime o TS some).
-    const criarPipeline = pipeline as unknown as (
+    // `??=` → only assigns if still null/undefined. That is: loads once.
+    // The overloads of `pipeline` produce a "too complex union" for TS. We wrap it
+    // in a simple signature (types only; at runtime TS disappears).
+    const createPipeline = pipeline as unknown as (
       task: 'feature-extraction',
       model: string,
       options: { dtype: EmbedderDtype },
     ) => Promise<FeatureExtractionPipeline>;
-    this.extractor ??= await criarPipeline('feature-extraction', MODEL, { dtype: this.dtype });
+    this.extractor ??= await createPipeline('feature-extraction', MODEL, { dtype: this.dtype });
     return this.extractor;
   }
 
   async embed(texts: string[]): Promise<number[][]> {
     const extractor = await this.getExtractor();
 
-    // pooling: 'mean'  → junta os tokens numa média = 1 vetor por FRASE
-    //                    (sem isso, viria 1 vetor por palavra).
-    // normalize: true  → deixa todo vetor com "tamanho 1", o que faz a
-    //                    similaridade de cosseno ficar estável e comparável.
+    // pooling: 'mean'  → merges the tokens into an average = 1 vector per SENTENCE
+    //                    (without it, it would be 1 vector per word).
+    // normalize: true  → makes every vector "length 1", which keeps cosine
+    //                    similarity stable and comparable.
     const output = await extractor(texts, { pooling: 'mean', normalize: true });
 
-    // A saída é um Tensor; `.tolist()` converte para arrays comuns de números.
-    // Para uma lista de N textos, o formato é [N][384].
+    // The output is a Tensor; `.tolist()` converts it to plain arrays of numbers.
+    // For a list of N texts, the shape is [N][384].
     return output.tolist() as number[][];
   }
 
   /**
-   * Libera a sessão do modelo (onnxruntime) de forma ordenada.
-   * Chamar isto antes de encerrar evita a corrida de threads nativas que causava
-   * o aviso "mutex lock failed" na saída do processo.
+   * Releases the model session (onnxruntime) in an orderly way. Calling this before
+   * shutting down avoids the native-thread race that caused the "mutex lock failed"
+   * warning on process exit.
    */
   async dispose(): Promise<void> {
     const ext = this.extractor as unknown as { dispose?: () => Promise<void> } | null;

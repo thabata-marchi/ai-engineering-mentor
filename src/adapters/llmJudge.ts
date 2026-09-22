@@ -1,26 +1,26 @@
 // ============================================================================
-//  LLMJudge — "LLM-as-judge" (Etapa 13, opcional): um modelo avalia o outro
+//  LLMJudge — "LLM-as-judge" (Step 13, optional): one model evaluates another
 // ============================================================================
 //
-//  A IDEIA: pedir a um LLM que dê uma NOTA de fidelidade (faithfulness) para uma
-//  resposta, dado o contexto que a originou. É útil para medir algo que métrica
-//  determinística não pega: "a resposta INVENTOU ou se apoiou nas fontes?".
+//  THE IDEA: ask an LLM to give a faithfulness SCORE to an answer, given the context
+//  that produced it. It's useful to measure something a deterministic metric can't
+//  catch: "did the answer MAKE THINGS UP or rely on the sources?".
 //
-//  ⚠️ CUSTA COTA e é NÃO-DETERMINÍSTICO (o modelo pode variar). Por isso é
-//  OPCIONAL — o harness roda sem ele por padrão. Nos testes usamos um juiz falso.
+//  ⚠️ It COSTS QUOTA and is NON-DETERMINISTIC (the model may vary). That's why it's
+//  OPTIONAL — the harness runs without it by default. In tests we use a fake judge.
 //
-//  Reaproveitamos o LLMPort que já temos (só `generate`). Pedimos ao juiz para
-//  responder APENAS um número de 0 a 1; fazemos um parse robusto (extrai o 1º
-//  número), com fallback seguro se a saída vier fora do esperado.
+//  We reuse the LLMPort we already have (just `generate`). We ask the judge to reply
+//  ONLY with a number from 0 to 1; we do a robust parse (extract the first number),
+//  with a safe fallback if the output comes out unexpected.
 // ============================================================================
 
 import type { JudgePort, LLMPort } from '../core/ports.ts';
 
 const JUDGE_SYSTEM = [
-  'Você é um avaliador rigoroso. Receberá uma PERGUNTA, um CONTEXTO e uma RESPOSTA.',
-  'Avalie a FIDELIDADE da resposta ao contexto: o quanto ela se apoia SOMENTE no',
-  'contexto, sem inventar. Responda APENAS com um número de 0 a 1 (ex.: 0.8).',
-  '0 = a resposta inventa ou contradiz o contexto; 1 = totalmente ancorada no contexto.',
+  'You are a strict evaluator. You will receive a QUESTION, a CONTEXT and an ANSWER.',
+  'Assess the FAITHFULNESS of the answer to the context: how much it relies ONLY on',
+  'the context, without making things up. Reply ONLY with a number from 0 to 1 (e.g. 0.8).',
+  '0 = the answer makes things up or contradicts the context; 1 = fully grounded in the context.',
 ].join('\n');
 
 export class LLMJudge implements JudgePort {
@@ -31,15 +31,15 @@ export class LLMJudge implements JudgePort {
   }
 
   async faithfulness(question: string, answer: string, context: string): Promise<number> {
-    const user = `PERGUNTA:\n${question}\n\nCONTEXTO:\n${context}\n\nRESPOSTA:\n${answer}\n\nNota (0 a 1):`;
-    const saida = await this.llm.generate(JUDGE_SYSTEM, user);
-    return parseNota(saida);
+    const user = `QUESTION:\n${question}\n\nCONTEXT:\n${context}\n\nANSWER:\n${answer}\n\nScore (0 to 1):`;
+    const output = await this.llm.generate(JUDGE_SYSTEM, user);
+    return parseScore(output);
   }
 }
 
-/** Extrai a 1ª ocorrência de um número e o limita a [0, 1]. Fallback: 0. */
-export function parseNota(texto: string): number {
-  const m = texto.match(/\d+(\.\d+)?/);
+/** Extracts the first occurrence of a number and clamps it to [0, 1]. Fallback: 0. */
+export function parseScore(text: string): number {
+  const m = text.match(/\d+(\.\d+)?/);
   if (!m) return 0;
   const n = Number(m[0]);
   if (Number.isNaN(n)) return 0;

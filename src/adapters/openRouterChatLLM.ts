@@ -1,23 +1,22 @@
 // ============================================================================
-//  OpenRouterChatLLM — LLM com TOOL-CALLING (implementa ToolCallingLLMPort)
+//  OpenRouterChatLLM — LLM with TOOL-CALLING (implements ToolCallingLLMPort)
 // ============================================================================
 //
-//  Irmão do OpenRouterLLM, mas para o AGENTE (Etapa 11). A diferença: além das
-//  mensagens, mandamos a LISTA DE TOOLS (no formato da OpenAI) e lemos de volta
-//  os `tool_calls` — os pedidos do modelo para executar uma ferramenta.
+//  Sibling of OpenRouterLLM, but for the AGENT (Step 11). The difference: besides
+//  the messages, we send the LIST OF TOOLS (in the OpenAI format) and read back the
+//  `tool_calls` — the model's requests to execute a tool.
 //
-//  A API do OpenRouter é compatível com a da OpenAI, que aceita:
+//  OpenRouter's API is compatible with OpenAI's, which accepts:
 //    body: { model, messages, tools, tool_choice }
-//  e responde com choices[0].message.tool_calls quando o modelo quer agir.
-//  Fonte: https://openrouter.ai/docs/features/tool-calling
+//  and replies with choices[0].message.tool_calls when the model wants to act.
+//  Source: https://openrouter.ai/docs/features/tool-calling
 //
-//  ⚠️ NEM TODO modelo :free suporta tool-calling de forma confiável. Se o modelo
-//  ignorar as tools, o agente simplesmente recebe um texto final (sem tool_calls)
-//  — o erro fica VISÍVEL, não silencioso. Prefira modelos "instruct" que anunciam
-//  suporte a tools (ex.: alguns Qwen/Llama). Veja o README da Etapa 11.
+//  ⚠️ NOT every :free model supports tool-calling reliably. If the model ignores the
+//  tools, the agent simply gets a final text (no tool_calls) — the issue is VISIBLE,
+//  not silent. Prefer "instruct" models that advertise tool support. See the README.
 //
-//  Mantemos a mesma robustez do OpenRouterLLM: timeout (AbortController), retry
-//  de rede com backoff e AUTO-CURA (404 no gratuito → cai no auto-router).
+//  We keep the same robustness as OpenRouterLLM: timeout (AbortController), network
+//  retry with backoff and AUTO-HEAL (404 on free → falls back to the auto-router).
 // ============================================================================
 
 import type { ChatMessage, ChatResult, ToolCall, ToolSpec } from '../core/models.ts';
@@ -45,7 +44,7 @@ export class OpenRouterChatLLM implements ToolCallingLLMPort {
   constructor(config: OpenRouterChatConfig) {
     if (!config.apiKey) {
       throw new Error(
-        'OpenRouterChatLLM: apiKey vazia. Defina OPENROUTER_API_KEY (crie em https://openrouter.ai/keys).',
+        'OpenRouterChatLLM: empty apiKey. Set OPENROUTER_API_KEY (create one at https://openrouter.ai/keys).',
       );
     }
     this.apiKey = config.apiKey;
@@ -59,11 +58,11 @@ export class OpenRouterChatLLM implements ToolCallingLLMPort {
     try {
       return await this.attempt(messages, tools, this.model);
     } catch (err) {
-      const rotacionou =
+      const rotated =
         err instanceof HttpError && err.status === 404 && this.model !== FALLBACK_MODEL;
-      if (rotacionou) {
+      if (rotated) {
         console.warn(
-          `⚠️  Modelo "${this.model}" indisponível no gratuito. Usando "${FALLBACK_MODEL}"...`,
+          `⚠️  Model "${this.model}" unavailable on the free tier. Using "${FALLBACK_MODEL}"...`,
         );
         return await this.attempt(messages, tools, FALLBACK_MODEL);
       }
@@ -71,29 +70,29 @@ export class OpenRouterChatLLM implements ToolCallingLLMPort {
     }
   }
 
-  /** Tenta com um modelo específico, com retry de rede e timeout. */
+  /** Tries with a specific model, with network retry and timeout. */
   private async attempt(
     messages: ChatMessage[],
     tools: ToolSpec[],
     model: string,
   ): Promise<ChatResult> {
-    let ultimoErro: unknown;
-    for (let tentativa = 0; tentativa <= this.retries; tentativa++) {
+    let lastError: unknown;
+    for (let i = 0; i <= this.retries; i++) {
       try {
         return await this.callOnce(messages, tools, model);
       } catch (err) {
-        if (err instanceof HttpError) throw err; // erro do servidor → não retenta
-        ultimoErro = err;
-        if (tentativa < this.retries) await sleep(500 * (tentativa + 1));
+        if (err instanceof HttpError) throw err; // server error → don't retry
+        lastError = err;
+        if (i < this.retries) await sleep(500 * (i + 1));
       }
     }
     throw new Error(
-      `Falha de rede ao chamar o OpenRouter após ${this.retries + 1} tentativas: ` +
-        `${descreverErro(ultimoErro)}. Verifique sua conexão.`,
+      `Network failure calling OpenRouter after ${this.retries + 1} attempts: ` +
+        `${describeError(lastError)}. Check your connection.`,
     );
   }
 
-  /** Uma tentativa: monta a requisição (com tools), com timeout, e lê os tool_calls. */
+  /** One attempt: builds the request (with tools), with a timeout, and reads the tool_calls. */
   private async callOnce(
     messages: ChatMessage[],
     tools: ToolSpec[],
@@ -112,7 +111,7 @@ export class OpenRouterChatLLM implements ToolCallingLLMPort {
         body: JSON.stringify({
           model,
           messages: messages.map(toApiMessage),
-          // Descreve as tools no formato que a OpenAI/OpenRouter espera.
+          // Describes the tools in the format OpenAI/OpenRouter expects.
           tools: tools.map((t) => ({
             type: 'function',
             function: { name: t.name, description: t.description, parameters: t.parameters },
@@ -122,8 +121,8 @@ export class OpenRouterChatLLM implements ToolCallingLLMPort {
       });
 
       if (!response.ok) {
-        const detalhe = await response.text().catch(() => '');
-        throw new HttpError(response.status, detalhe);
+        const detail = await response.text().catch(() => '');
+        throw new HttpError(response.status, detail);
       }
 
       const data = (await response.json()) as {
@@ -147,14 +146,14 @@ export class OpenRouterChatLLM implements ToolCallingLLMPort {
   }
 }
 
-/** Traduz a nossa ChatMessage para o formato exato que a API espera. */
+/** Translates our ChatMessage into the exact format the API expects. */
 function toApiMessage(m: ChatMessage): Record<string, unknown> {
   if (m.role === 'tool') {
-    // Mensagem com o RESULTADO de uma tool: precisa amarrar ao pedido (tool_call_id).
+    // A message with the RESULT of a tool: it must tie to the request (tool_call_id).
     return { role: 'tool', tool_call_id: m.toolCallId, content: m.content };
   }
   if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0) {
-    // O assistant PEDINDO tools: reenviamos os tool_calls no formato da API.
+    // The assistant REQUESTING tools: we resend the tool_calls in the API format.
     return {
       role: 'assistant',
       content: m.content || null,
@@ -168,15 +167,15 @@ function toApiMessage(m: ChatMessage): Record<string, unknown> {
   return { role: m.role, content: m.content };
 }
 
-/** Erro vindo do servidor (status HTTP). Não deve ser retentado. */
+/** Error from the server (HTTP status). Should not be retried. */
 class HttpError extends Error {
   readonly status: number;
-  readonly detalhe: string;
-  constructor(status: number, detalhe: string) {
-    super(`OpenRouter respondeu ${status}: ${detalhe}`);
+  readonly detail: string;
+  constructor(status: number, detail: string) {
+    super(`OpenRouter responded ${status}: ${detail}`);
     this.name = 'HttpError';
     this.status = status;
-    this.detalhe = detalhe;
+    this.detail = detail;
   }
 }
 
@@ -184,10 +183,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function descreverErro(err: unknown): string {
+function describeError(err: unknown): string {
   if (err instanceof Error) {
-    const causa = (err as { cause?: { message?: string } }).cause;
-    return causa?.message ? `${err.message} (${causa.message})` : err.message;
+    const cause = (err as { cause?: { message?: string } }).cause;
+    return cause?.message ? `${err.message} (${cause.message})` : err.message;
   }
   return String(err);
 }

@@ -1,22 +1,22 @@
 // ============================================================================
-//  RateLimited*LLM — DECORATORS que aplicam rate limit sem tocar no adapter real
+//  RateLimited*LLM — DECORATORS that apply the rate limit without touching the real adapter
 // ============================================================================
 //
-//  PADRÃO DECORATOR: cada classe aqui "embrulha" outro LLM (o real) e adiciona um
-//  comportamento — checar o limite — ANTES de delegar. Como o decorator implementa
-//  o MESMO port, quem usa (AnswerQuestion, MentorAgent) não percebe diferença:
-//  continua chamando `generate`/`chat`. É o Princípio Aberto/Fechado na prática —
-//  estendemos o comportamento sem modificar o OpenRouterLLM.
+//  DECORATOR PATTERN: each class here "wraps" another LLM (the real one) and adds a
+//  behavior — checking the limit — BEFORE delegating. Since the decorator implements
+//  the SAME port, its users (AnswerQuestion, MentorAgent) notice no difference: they
+//  keep calling `generate`/`chat`. It's the Open/Closed Principle in practice — we
+//  extend the behavior without modifying OpenRouterLLM.
 //
-//  Os dois compartilham o MESMO RateLimiter (do core), então o teto vale para o
-//  conjunto de chamadas (RAG + agente) — protege sua cota de forma unificada.
+//  Both share the SAME RateLimiter (from the core), so the cap applies to the whole
+//  set of calls (RAG + agent) — protecting your quota in a unified way.
 // ============================================================================
 
 import type { ChatMessage, ChatResult, ToolSpec } from '../core/models.ts';
 import type { LLMPort, ToolCallingLLMPort } from '../core/ports.ts';
 import type { RateLimiter } from '../core/rateLimiter.ts';
 
-/** Decorator do LLMPort simples (usado pelo RAG). */
+/** Decorator of the simple LLMPort (used by the RAG). */
 export class RateLimitedLLM implements LLMPort {
   private readonly inner: LLMPort;
   private readonly limiter: RateLimiter;
@@ -27,12 +27,12 @@ export class RateLimitedLLM implements LLMPort {
   }
 
   async generate(systemPrompt: string, userPrompt: string): Promise<string> {
-    this.limiter.acquire(); // lança RateLimitError se exceder
+    this.limiter.acquire(); // throws RateLimitError if exceeded
     return this.inner.generate(systemPrompt, userPrompt);
   }
 }
 
-/** Decorator do ToolCallingLLMPort (usado pelo agente). */
+/** Decorator of the ToolCallingLLMPort (used by the agent). */
 export class RateLimitedChatLLM implements ToolCallingLLMPort {
   private readonly inner: ToolCallingLLMPort;
   private readonly limiter: RateLimiter;

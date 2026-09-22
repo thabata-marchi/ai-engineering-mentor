@@ -1,21 +1,21 @@
 // ============================================================================
-//  McpAgentTools — as ferramentas do agente VÊM DO SERVIDOR MCP (Etapa 11)
+//  McpAgentTools — the agent's tools COME FROM THE MCP SERVER (Step 11)
 // ============================================================================
 //
-//  Este adapter implementa o AgentToolsPort embrulhando um CLIENTE MCP. É AQUI
-//  que "o agente consome o MCP": ele lista as tools que o nosso servidor da
-//  Etapa 9 expõe (`perguntar`, `meu_progresso`) e as executa PELO PROTOCOLO.
+//  This adapter implements AgentToolsPort by wrapping an MCP CLIENT. This is WHERE
+//  "the agent consumes the MCP": it lists the tools our Step 9 server exposes
+//  (`ask`, `my_progress`) and executes them OVER THE PROTOCOL.
 //
-//  POR QUE ISSO É LEGAL (arquitetura)?
-//  O agente (caso de uso) não sabe que por baixo é MCP — ele só conhece o
-//  AgentToolsPort. Poderíamos trocar por tools locais, por outro servidor MCP
-//  remoto, etc., sem tocar no agente. E o servidor MCP que construímos ganha um
-//  consumidor real, provando seu valor.
+//  WHY IS THIS NICE (architecture)?
+//  The agent (use case) doesn't know it's MCP underneath — it only knows the
+//  AgentToolsPort. We could swap for local tools, another remote MCP server, etc.,
+//  without touching the agent. And the MCP server we built gains a real consumer,
+//  proving its value.
 //
-//  CONVERSÕES QUE FAZEMOS AQUI:
-//    • MCP tool.inputSchema  → ToolSpec.parameters (o schema que o LLM lê)
-//    • arguments em JSON-string (como o LLM manda) → objeto (como o MCP espera)
-//    • resultado { content:[{type:'text',text}] } → uma string única
+//  CONVERSIONS WE DO HERE:
+//    • MCP tool.inputSchema  → ToolSpec.parameters (the schema the LLM reads)
+//    • arguments as a JSON string (as the LLM sends) → object (as MCP expects)
+//    • result { content:[{type:'text',text}] } → a single string
 // ============================================================================
 
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -35,7 +35,7 @@ export class McpAgentTools implements AgentToolsPort {
     return tools.map((t) => ({
       name: t.name,
       description: t.description ?? '',
-      // inputSchema do MCP já é um JSON Schema — é o que o modelo precisa ver.
+      // The MCP inputSchema is already a JSON Schema — it's what the model needs to see.
       parameters: (t.inputSchema as Record<string, unknown>) ?? {
         type: 'object',
         properties: {},
@@ -44,14 +44,14 @@ export class McpAgentTools implements AgentToolsPort {
   }
 
   async callTool(name: string, argumentsJson: string): Promise<string> {
-    // O LLM manda os argumentos como STRING JSON; o MCP quer um OBJETO.
+    // The LLM sends the arguments as a JSON STRING; MCP wants an OBJECT.
     let args: Record<string, unknown>;
     try {
       args = argumentsJson ? JSON.parse(argumentsJson) : {};
     } catch {
-      // Modelo mandou algo que não é JSON válido → devolvemos um erro legível
-      // (que vira observação para o modelo se corrigir na próxima rodada).
-      return `Erro: argumentos inválidos (esperava JSON): ${argumentsJson}`;
+      // The model sent something that isn't valid JSON → we return a readable error
+      // (which becomes an observation for the model to fix on the next round).
+      return `Error: invalid arguments (expected JSON): ${argumentsJson}`;
     }
 
     const result = (await this.client.callTool({ name, arguments: args })) as {
@@ -59,11 +59,11 @@ export class McpAgentTools implements AgentToolsPort {
       isError?: boolean;
     };
 
-    // Junta os blocos de texto do resultado numa string só.
-    const texto = (result.content ?? [])
+    // Join the result's text blocks into a single string.
+    const text = (result.content ?? [])
       .filter((c) => c.type === 'text' && typeof c.text === 'string')
       .map((c) => c.text)
       .join('\n');
-    return texto || '(a tool não devolveu texto)';
+    return text || '(the tool returned no text)';
   }
 }

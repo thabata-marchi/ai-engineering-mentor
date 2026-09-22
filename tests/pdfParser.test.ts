@@ -22,5 +22,5 @@ test('extrai texto de um PDF e devolve Document com id/fonte', async () => {
 
 test('recusa arquivo que não é .pdf, com erro claro', async () => {
   const parser = new PdfParser();
-  await assert.rejects(() => parser.parse('algum.md'), /só lê \.pdf/i);
+  await assert.rejects(() => parser.parse('algum.md'), /only reads \.pdf/i);
 });

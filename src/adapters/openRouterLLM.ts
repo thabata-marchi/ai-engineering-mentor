@@ -1,47 +1,46 @@
 // ============================================================================
-//  OpenRouterLLM — adapter de LLM REAL (implementa LLMPort via OpenRouter)
+//  OpenRouterLLM — REAL LLM adapter (implements LLMPort via OpenRouter)
 // ============================================================================
 //
-//  O QUE É O OPENROUTER (e por que ele)?
-//  É um "gateway": uma única API e uma única chave dão acesso a dezenas de
-//  modelos (OpenAI, Google, Meta, Mistral, Qwen...). O curso do Erick usa ele,
-//  então mantemos o alinhamento. Vários modelos têm versão GRATUITA (id termina
-//  em ":free") — ótimo para estudo.
-//  Fontes: https://openrouter.ai/docs/quickstart e https://openrouter.ai/openrouter/free
+//  WHAT IS OPENROUTER (and why it)?
+//  It's a "gateway": a single API and a single key give access to dozens of models
+//  (OpenAI, Google, Meta, Mistral, Qwen...). Several models have a FREE version (id
+//  ends in ":free") — great for study.
+//  Sources: https://openrouter.ai/docs/quickstart and https://openrouter.ai/openrouter/free
 //
-//  A API é COMPATÍVEL COM A DA OPENAI:
+//  THE API IS COMPATIBLE WITH OPENAI'S:
 //    POST https://openrouter.ai/api/v1/chat/completions
-//    Header: Authorization: Bearer <SUA_CHAVE>
+//    Header: Authorization: Bearer <YOUR_KEY>
 //    Body: { model, messages: [{ role, content }, ...] }
 //
-//  DECISÃO DE ARQUITETURA:
-//  Este é só mais um ADAPTER que respeita o `LLMPort`. O caso de uso
-//  (AnswerQuestion) não muda NADA para usá-lo no lugar do FakeLLM — de novo, o
-//  "D" do SOLID. A chave da API é RECEBIDA pronta (injeção), não lida aqui
-//  dentro: assim o adapter não conhece variáveis de ambiente e fica testável.
+//  ARCHITECTURE DECISION:
+//  This is just another ADAPTER that honors `LLMPort`. The use case (AnswerQuestion)
+//  changes NOTHING to use it in place of FakeLLM — again, the "D" of SOLID. The API
+//  key is RECEIVED ready (injection), not read here inside: so the adapter doesn't
+//  know about environment variables and stays testable.
 //
-//  SEGREDO NUNCA VAI PARA O CÓDIGO:
-//  A chave vem de uma variável de ambiente (OPENROUTER_API_KEY), lida lá no
-//  "ponto de montagem" (examples/ask.ts) e passada aqui. Nunca commitamos chave.
+//  THE SECRET NEVER GOES INTO THE CODE:
+//  The key comes from an environment variable (OPENROUTER_API_KEY), read at the
+//  "composition root" (examples/setup.ts) and passed here. We never commit a key.
 // ============================================================================
 
 import type { LLMPort } from '../core/ports.ts';
 
 export interface OpenRouterConfig {
   readonly apiKey: string;
-  readonly model?: string; // padrão: um modelo gratuito
-  readonly baseUrl?: string; // permite trocar a URL nos testes
-  readonly timeoutMs?: number; // corta a espera se o servidor travar (padrão 60s)
-  readonly retries?: number; // tentativas extras em falha de rede (padrão 2)
+  readonly model?: string; // default: a free model
+  readonly baseUrl?: string; // allows swapping the URL in tests
+  readonly timeoutMs?: number; // cuts the wait if the server hangs (default 60s)
+  readonly retries?: number; // extra attempts on network failure (default 2)
 }
 
-// Modelo padrão: "openrouter/free" é o AUTO-ROUTER de gratuitos — o próprio
-// OpenRouter escolhe um modelo :free ativo na hora. Como os :free ROTACIONAM
-// (somem sem aviso), o auto-router evita que o app quebre. Para fixar um modelo
-// específico, passe OPENROUTER_MODEL (veja https://openrouter.ai/models, filtro "free").
+// Default model: "openrouter/free" is the free AUTO-ROUTER — OpenRouter itself picks
+// an active :free model on the fly. Since :free models ROTATE (disappear without
+// notice), the auto-router prevents the app from breaking. To pin a specific model,
+// pass OPENROUTER_MODEL (see https://openrouter.ai/models, filter "free").
 const DEFAULT_MODEL = 'openrouter/free';
-// Rede de segurança: se o modelo escolhido rotacionar para pago (404), caímos
-// automaticamente para o auto-router de gratuitos.
+// Safety net: if the chosen model rotates to paid (404), we automatically fall back
+// to the free auto-router.
 const FALLBACK_MODEL = 'openrouter/free';
 const DEFAULT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -55,7 +54,7 @@ export class OpenRouterLLM implements LLMPort {
   constructor(config: OpenRouterConfig) {
     if (!config.apiKey) {
       throw new Error(
-        'OpenRouterLLM: apiKey vazia. Defina OPENROUTER_API_KEY (crie em https://openrouter.ai/keys).',
+        'OpenRouterLLM: empty apiKey. Set OPENROUTER_API_KEY (create one at https://openrouter.ai/keys).',
       );
     }
     this.apiKey = config.apiKey;
@@ -69,15 +68,15 @@ export class OpenRouterLLM implements LLMPort {
     try {
       return await this.attempt(systemPrompt, userPrompt, this.model);
     } catch (err) {
-      // AUTO-CURA: se o modelo escolhido saiu do gratuito (404), o app não
-      // quebra — ele cai automaticamente para o auto-router de gratuitos, que
-      // sempre tem algum modelo ativo. Isso evita ter que editar o .env toda vez
-      // que um modelo ":free" rotaciona para pago.
-      const rotacionou =
+      // AUTO-HEAL: if the chosen model left the free tier (404), the app doesn't
+      // break — it automatically falls back to the free auto-router, which always
+      // has some active model. This avoids editing the .env every time a ":free"
+      // model rotates to paid.
+      const rotated =
         err instanceof HttpError && err.status === 404 && this.model !== FALLBACK_MODEL;
-      if (rotacionou) {
+      if (rotated) {
         console.warn(
-          `⚠️  Modelo "${this.model}" indisponível no gratuito. Usando "${FALLBACK_MODEL}"...`,
+          `⚠️  Model "${this.model}" unavailable on the free tier. Using "${FALLBACK_MODEL}"...`,
         );
         return await this.attempt(systemPrompt, userPrompt, FALLBACK_MODEL);
       }
@@ -85,40 +84,40 @@ export class OpenRouterLLM implements LLMPort {
     }
   }
 
-  /** Tenta gerar com um modelo específico, com retry de rede e timeout. */
+  /** Tries to generate with a specific model, with network retry and timeout. */
   private async attempt(
     systemPrompt: string,
     userPrompt: string,
     model: string,
   ): Promise<string> {
-    // Tenta algumas vezes: falhas de REDE (o "fetch failed") costumam ser
-    // passageiras. Erros de HTTP (4xx) NÃO são retentados — não adianta insistir.
-    // Backoff simples: espera um pouco mais a cada tentativa.
-    let ultimoErro: unknown;
-    for (let tentativa = 0; tentativa <= this.retries; tentativa++) {
+    // Try a few times: NETWORK failures (the "fetch failed") are usually transient.
+    // HTTP errors (4xx) are NOT retried — insisting won't help. Simple backoff: wait
+    // a bit longer on each attempt.
+    let lastError: unknown;
+    for (let i = 0; i <= this.retries; i++) {
       try {
         return await this.callOnce(systemPrompt, userPrompt, model);
       } catch (err) {
-        if (err instanceof HttpError) throw err; // erro do servidor → não retenta
-        ultimoErro = err;
-        if (tentativa < this.retries) {
-          await sleep(500 * (tentativa + 1)); // 0.5s, 1s, ...
+        if (err instanceof HttpError) throw err; // server error → don't retry
+        lastError = err;
+        if (i < this.retries) {
+          await sleep(500 * (i + 1)); // 0.5s, 1s, ...
         }
       }
     }
     throw new Error(
-      `Falha de rede ao chamar o OpenRouter após ${this.retries + 1} tentativas: ` +
-        `${descreverErro(ultimoErro)}. Verifique sua conexão.`,
+      `Network failure calling OpenRouter after ${this.retries + 1} attempts: ` +
+        `${describeError(lastError)}. Check your connection.`,
     );
   }
 
-  /** Uma tentativa: monta a requisição, com timeout, e lê a resposta. */
+  /** One attempt: builds the request, with a timeout, and reads the response. */
   private async callOnce(
     systemPrompt: string,
     userPrompt: string,
     model: string,
   ): Promise<string> {
-    // AbortController corta a requisição se ela passar do tempo limite.
+    // AbortController cuts the request if it exceeds the time limit.
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
@@ -139,10 +138,10 @@ export class OpenRouterLLM implements LLMPort {
         signal: controller.signal,
       });
 
-      // Erro de HTTP (chave inválida, limite, modelo fora...) → mensagem clara.
+      // HTTP error (invalid key, limit, model gone...) → clear message.
       if (!response.ok) {
-        const detalhe = await response.text().catch(() => '');
-        throw new HttpError(response.status, detalhe);
+        const detail = await response.text().catch(() => '');
+        throw new HttpError(response.status, detail);
       }
 
       const data = (await response.json()) as {
@@ -150,24 +149,24 @@ export class OpenRouterLLM implements LLMPort {
       };
       const text = data.choices?.[0]?.message?.content;
       if (typeof text !== 'string') {
-        throw new HttpError(200, 'resposta sem conteúdo de texto.');
+        throw new HttpError(200, 'response without text content.');
       }
       return text;
     } finally {
-      clearTimeout(timer); // sempre limpa o timer (deu certo ou não)
+      clearTimeout(timer); // always clear the timer (success or not)
     }
   }
 }
 
-/** Erro vindo do servidor (status HTTP). Não deve ser retentado. */
+/** Error from the server (HTTP status). Should not be retried. */
 class HttpError extends Error {
   readonly status: number;
-  readonly detalhe: string;
-  constructor(status: number, detalhe: string) {
-    super(`OpenRouter respondeu ${status}: ${detalhe}`);
+  readonly detail: string;
+  constructor(status: number, detail: string) {
+    super(`OpenRouter responded ${status}: ${detail}`);
     this.name = 'HttpError';
     this.status = status;
-    this.detalhe = detalhe;
+    this.detail = detail;
   }
 }
 
@@ -175,11 +174,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/** Extrai uma descrição útil do erro de rede (o "fetch failed" esconde a causa). */
-function descreverErro(err: unknown): string {
+/** Extracts a useful description from the network error (the "fetch failed" hides the cause). */
+function describeError(err: unknown): string {
   if (err instanceof Error) {
-    const causa = (err as { cause?: { message?: string } }).cause;
-    return causa?.message ? `${err.message} (${causa.message})` : err.message;
+    const cause = (err as { cause?: { message?: string } }).cause;
+    return cause?.message ? `${err.message} (${cause.message})` : err.message;
   }
   return String(err);
 }

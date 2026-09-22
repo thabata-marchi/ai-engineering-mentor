@@ -64,7 +64,7 @@ export {
 export type { LLMProvider, LLMFactoryConfig } from './adapters/llmFactory.ts';
 export { RateLimitedLLM, RateLimitedChatLLM } from './adapters/rateLimitedLLM.ts';
 export { McpAgentTools } from './adapters/mcpAgentTools.ts';
-export { LLMJudge, parseNota } from './adapters/llmJudge.ts';
+export { LLMJudge, parseScore } from './adapters/llmJudge.ts';
 
 // Servidor MCP.
 export { createMentorMcpServer } from './mcp/mentorServer.ts';

@@ -1,26 +1,26 @@
 // ============================================================================
-//  MentorAgent — o AGENTE autônomo (Etapa 11): o loop ReAct
+//  MentorAgent — the autonomous AGENT (Step 11): the ReAct loop
 // ============================================================================
 //
-//  O QUE MUDA EM RELAÇÃO AO RAG?
-//  No RAG (AnswerQuestion) NÓS decidimos o fluxo: busca → prompt → resposta. No
-//  AGENTE, quem decide é o MODELO: damos um OBJETIVO + a lista de tools, e ele
-//  escolhe qual chamar, com quais argumentos, quantas vezes, até concluir.
+//  WHAT CHANGES VERSUS THE RAG?
+//  In the RAG (AnswerQuestion) WE decide the flow: search → prompt → answer. In the
+//  AGENT, the MODEL decides: we give a GOAL + the list of tools, and it chooses which
+//  to call, with which arguments, how many times, until it's done.
 //
-//  O LOOP ReAct (Reason → Act → Observe), que é o que `run()` faz:
-//    1. Mandamos o histórico + as tools ao LLM.               (Reason)
-//    2. Se ele pediu tools, executamos cada uma.              (Act)
-//    3. Devolvemos os resultados como mensagens 'tool'.       (Observe)
-//    4. Repetimos. Quando o LLM responde SEM pedir tools, essa é a resposta final.
-//  Um TETO de iterações (maxSteps) evita loop infinito se o modelo nunca parar.
+//  THE ReAct LOOP (Reason → Act → Observe), which is what `run()` does:
+//    1. We send the history + the tools to the LLM.           (Reason)
+//    2. If it requested tools, we execute each one.           (Act)
+//    3. We return the results as 'tool' messages.             (Observe)
+//    4. Repeat. When the LLM answers WITHOUT requesting tools, that's the final answer.
+//  An iteration CAP (maxSteps) prevents an infinite loop if the model never stops.
 //
-//  DECISÃO DE ARQUITETURA:
-//  O agente depende só de PORTS: `ToolCallingLLMPort` (o cérebro) e
-//  `AgentToolsPort` (as mãos — no nosso caso, o MCP). Não sabe de rede nem de
-//  MCP → testamos o loop inteiro com dublês, de forma determinística.
+//  ARCHITECTURE DECISION:
+//  The agent depends only on PORTS: `ToolCallingLLMPort` (the brain) and
+//  `AgentToolsPort` (the hands — in our case, MCP). It knows nothing about the
+//  network or MCP → we test the whole loop with doubles, deterministically.
 //
-//  RASTREABILIDADE ("não invento"): devolvemos o `steps` — o passo a passo real
-//  de quais tools o agente chamou e o que elas responderam.
+//  TRACEABILITY ("don't make things up"): we return `steps` — the real step-by-step
+//  of which tools the agent called and what they answered.
 // ============================================================================
 
 import type { AgentResult, AgentStep, ChatMessage } from '../core/models.ts';
@@ -38,10 +38,10 @@ export const SYSTEM_PROMPT_AGENTE = [
 ].join('\n');
 
 export interface MentorAgentDeps {
-  readonly llm: ToolCallingLLMPort; // o cérebro (decide as tools)
-  readonly tools: AgentToolsPort; // as mãos (executa — no nosso caso, via MCP)
-  readonly maxSteps?: number; // teto de iterações do loop (padrão: 6)
-  readonly systemPrompt?: string; // permite customizar a instrução base
+  readonly llm: ToolCallingLLMPort; // the brain (decides the tools)
+  readonly tools: AgentToolsPort; // the hands (executes — in our case, via MCP)
+  readonly maxSteps?: number; // loop iteration cap (default: 6)
+  readonly systemPrompt?: string; // allows customizing the base instruction
 }
 
 export class MentorAgent {
@@ -57,49 +57,49 @@ export class MentorAgent {
     this.systemPrompt = deps.systemPrompt ?? SYSTEM_PROMPT_AGENTE;
   }
 
-  /** Roda o agente até ele produzir a resposta final (ou bater o teto de passos). */
-  async run(objetivo: string): Promise<AgentResult> {
+  /** Runs the agent until it produces the final answer (or hits the step cap). */
+  async run(goal: string): Promise<AgentResult> {
     const toolSpecs = await this.tools.listTools();
     const steps: AgentStep[] = [];
 
-    // O diálogo com o modelo começa com a instrução base + o objetivo do aluno.
+    // The dialogue with the model starts with the base instruction + the student's goal.
     const messages: ChatMessage[] = [
       { role: 'system', content: this.systemPrompt },
-      { role: 'user', content: objetivo },
+      { role: 'user', content: goal },
     ];
 
-    for (let passo = 0; passo < this.maxSteps; passo++) {
+    for (let step = 0; step < this.maxSteps; step++) {
       const result = await this.llm.chat(messages, toolSpecs);
 
-      // Sem pedidos de tool → o modelo deu a RESPOSTA FINAL. Encerra.
+      // No tool requests → the model gave the FINAL ANSWER. Done.
       if (result.toolCalls.length === 0) {
         return { answer: result.content, steps, stoppedByLimit: false };
       }
 
-      // O modelo PEDIU tools: registramos a mensagem do assistant com os pedidos...
+      // The model REQUESTED tools: we record the assistant message with the requests...
       messages.push({ role: 'assistant', content: result.content, toolCalls: result.toolCalls });
 
-      // ...executamos cada tool e devolvemos o resultado como mensagem 'tool'.
+      // ...we execute each tool and return the result as a 'tool' message.
       for (const call of result.toolCalls) {
-        const resultado = await this.tools.callTool(call.name, call.arguments);
-        steps.push({ tool: call.name, arguments: call.arguments, result: resultado });
-        messages.push({ role: 'tool', toolCallId: call.id, name: call.name, content: resultado });
+        const toolResult = await this.tools.callTool(call.name, call.arguments);
+        steps.push({ tool: call.name, arguments: call.arguments, result: toolResult });
+        messages.push({ role: 'tool', toolCallId: call.id, name: call.name, content: toolResult });
       }
     }
 
-    // Bateu o teto sem concluir: fazemos uma última chamada SEM tools, forçando
-    // o modelo a resumir o que já tem em vez de devolver algo vazio.
-    const fechamento = await this.llm.chat(
+    // Hit the cap without finishing: we make one last call WITHOUT tools, forcing the
+    // model to summarize what it already has instead of returning something empty.
+    const closing = await this.llm.chat(
       [
         ...messages,
         {
           role: 'user',
           content:
-            'Você atingiu o limite de passos. Responda agora ao objetivo com o que já reuniu, sem chamar mais tools.',
+            'You have reached the step limit. Answer the goal now with what you already gathered, without calling more tools.',
         },
       ],
-      [], // sem tools nesta última rodada
+      [], // no tools in this final round
     );
-    return { answer: fechamento.content, steps, stoppedByLimit: true };
+    return { answer: closing.content, steps, stoppedByLimit: true };
   }
 }

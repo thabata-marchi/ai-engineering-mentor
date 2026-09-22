@@ -1,15 +1,14 @@
 // ============================================================================
-//  MongoProfile — perfil de aprendizado PERSISTIDO no MongoDB (Etapa 10)
+//  MongoProfile — learning profile PERSISTED in MongoDB (Step 10)
 // ============================================================================
 //
-//  Mesmo contrato do InMemoryProfile (o ProfilePort), mas os registros de estudo
-//  vão para uma coleção do Mongo (`study_log`). Assim o mentor sabe "no que o
-//  aluno vem estudando" ENTRE execuções — e você consegue VER isso no Mongo
-//  Express.
+//  Same contract as InMemoryProfile (the ProfilePort), but the study records go to
+//  a Mongo collection (`study_log`). This way the mentor knows "what the student has
+//  been studying" BETWEEN runs — and you can SEE it in Mongo Express.
 //
-//  Guardamos UM DOCUMENTO POR ESTUDO: { studentId, question, sources, at }. O
-//  RESUMO reaproveita a mesma função pura `summarize()` do InMemoryProfile — a
-//  regra de negócio é única; só muda ONDE os dados moram.
+//  We store ONE DOCUMENT PER STUDY: { studentId, question, sources, at }. The
+//  SUMMARY reuses the same pure `summarize()` function from InMemoryProfile — the
+//  business rule is single; only WHERE the data lives changes.
 // ============================================================================
 
 import { MongoClient, type Collection } from 'mongodb';
@@ -24,8 +23,8 @@ interface StudyDoc extends StudyRecord {
 
 export interface MongoProfileConfig {
   readonly url: string;
-  readonly dbName?: string; // padrão: ai_mentor
-  readonly collectionName?: string; // padrão: study_log
+  readonly dbName?: string; // default: ai_mentor
+  readonly collectionName?: string; // default: study_log
 }
 
 export class MongoProfile implements ProfilePort {
@@ -55,15 +54,15 @@ export class MongoProfile implements ProfilePort {
 
   async summary(studentId: string): Promise<ProfileSummary> {
     const col = await this.collection();
-    // Traz os registros em ordem cronológica e delega a agregação à função pura.
-    const registros = await col
+    // Fetch the records in chronological order and delegate aggregation to the pure function.
+    const records = await col
       .find({ studentId }, { projection: { _id: 0, studentId: 0 } })
       .sort({ at: 1 })
       .toArray();
-    return summarize(registros);
+    return summarize(records);
   }
 
-  /** Fecha a conexão — chamar ao encerrar o programa. */
+  /** Closes the connection — call it when shutting down the program. */
   async close(): Promise<void> {
     if (this.connected) {
       await this.client.close();

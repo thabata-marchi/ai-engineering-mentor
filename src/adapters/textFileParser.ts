@@ -1,17 +1,17 @@
 // ============================================================================
-//  TextFileParser — ADAPTER que lê arquivos de texto (.md / .txt)
+//  TextFileParser — ADAPTER that reads text files (.md / .txt)
 // ============================================================================
 //
-//  POR QUE ISSO É UM "ADAPTER" (e não fica no core)?
-//  Porque ele faz I/O de verdade: LÊ ARQUIVOS do disco. Depende do mundo externo
-//  (sistema de arquivos). Na Arquitetura Hexagonal, tudo que toca o "mundo lá
-//  fora" vira adapter e implementa um Port — aqui, o `DocumentParserPort`.
-//  Assim o núcleo continua puro, e a gente pode trocar/mockar a leitura nos testes.
+//  WHY IS THIS AN "ADAPTER" (and not in the core)?
+//  Because it does real I/O: it READS FILES from disk. It depends on the outside
+//  world (the file system). In Hexagonal Architecture, anything that touches the
+//  "outside world" becomes an adapter and implements a Port — here, the
+//  `DocumentParserPort`. That keeps the core pure, and lets us swap/mock reads in tests.
 //
-//  ESCOPO (decisão consciente de MVP):
-//  Este parser lê só TEXTO e MARKDOWN. PDF exige uma biblioteca à parte e um
-//  tratamento mais delicado (colunas, código, tabelas) — fica pra Etapa 2b.
-//  Começar pelo simples = "pequeno, correto e testável".
+//  SCOPE (a conscious MVP decision):
+//  This parser reads only TEXT and MARKDOWN. PDF requires a separate library and
+//  more delicate handling (columns, code, tables) — that's the PdfParser.
+//  Starting simple = "small, correct and testable".
 // ============================================================================
 
 import { readFile } from 'node:fs/promises';
@@ -20,25 +20,25 @@ import { basename, extname } from 'node:path';
 import type { Document } from '../core/models.ts';
 import type { DocumentParserPort } from '../core/ports.ts';
 
-const EXTENSOES_SUPORTADAS = new Set(['.md', '.markdown', '.txt']);
+const SUPPORTED_EXTENSIONS = new Set(['.md', '.markdown', '.txt']);
 
 export class TextFileParser implements DocumentParserPort {
   async parse(path: string): Promise<Document> {
     const ext = extname(path).toLowerCase();
 
-    // Falha cedo e com mensagem clara se o tipo não for suportado.
-    if (!EXTENSOES_SUPORTADAS.has(ext)) {
+    // Fail early and with a clear message if the type is unsupported.
+    if (!SUPPORTED_EXTENSIONS.has(ext)) {
       throw new Error(
-        `TextFileParser só lê ${[...EXTENSOES_SUPORTADAS].join(', ')}. ` +
-          `Para "${ext || 'sem extensão'}", use um parser específico (PDF vem na Etapa 2b).`,
+        `TextFileParser only reads ${[...SUPPORTED_EXTENSIONS].join(', ')}. ` +
+          `For "${ext || 'no extension'}", use a specific parser (PDF uses PdfParser).`,
       );
     }
 
-    const text = await readFile(path, 'utf-8'); // I/O assíncrono → por isso Promise
+    const text = await readFile(path, 'utf-8'); // async I/O → hence Promise
 
     return {
-      id: basename(path, ext), // nome sem extensão, ex.: "clean_code"
-      source: basename(path), // nome do arquivo, ex.: "clean_code.md" → p/ citar a fonte
+      id: basename(path, ext), // name without extension, e.g. "clean_code"
+      source: basename(path), // file name, e.g. "clean_code.md" → to cite the source
       text,
       metadata: { ext },
     };

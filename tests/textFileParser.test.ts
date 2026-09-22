@@ -22,5 +22,5 @@ test('lê um .md e devolve Document com texto, id e fonte', async () => {
 
 test('recusa tipos não suportados (ex.: .pdf) com erro claro', async () => {
   const parser = new TextFileParser();
-  await assert.rejects(() => parser.parse('algum/arquivo.pdf'), /Etapa 2b/);
+  await assert.rejects(() => parser.parse('algum/arquivo.pdf'), /PdfParser/);
 });
