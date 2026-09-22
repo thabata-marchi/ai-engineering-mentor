@@ -46,15 +46,15 @@ test('MCP: cliente lista a tool "perguntar" e recebe a resposta do mentor', asyn
 
   try {
     const { tools } = await client.listTools();
-    assert.ok(tools.some((t) => t.name === 'perguntar'));
+    assert.ok(tools.some((t) => t.name === 'ask'));
 
     const result = await client.callTool({
-      name: 'perguntar',
-      arguments: { pergunta: 'o que é SRP?' },
+      name: 'ask',
+      arguments: { question: 'o que é SRP?' },
     });
     const texto = (result.content as { type: string; text: string }[])[0].text;
     assert.match(texto, /resposta via MCP/);
-    assert.match(texto, /Fontes/); // trouxe a rastreabilidade
+    assert.match(texto, /Sources/); // trouxe a rastreabilidade
   } finally {
     await client.close();
     await server.close();
@@ -70,7 +70,7 @@ test('MCP: expõe o resource da base e o prompt de estudo guiado', async () => {
     assert.ok(resources.some((r) => r.uri === 'mentor://base'));
 
     const { prompts } = await client.listPrompts();
-    assert.ok(prompts.some((p) => p.name === 'estudo-guiado'));
+    assert.ok(prompts.some((p) => p.name === 'guided-study'));
   } finally {
     await client.close();
     await server.close();

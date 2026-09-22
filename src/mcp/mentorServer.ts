@@ -1,23 +1,23 @@
 // ============================================================================
-//  mentorServer — expõe o mentor como um SERVIDOR MCP (Etapa 9)
+//  mentorServer — exposes the mentor as an MCP SERVER (Step 9)
 // ============================================================================
 //
-//  O QUE É ISSO?
-//  Aqui a gente "embrulha" o mentor no protocolo MCP (Model Context Protocol),
-//  o mesmo do Módulo 3 do curso. Assim, qualquer cliente compatível (o VSCode,
-//  o Claude, um agente LangChain...) enxerga o mentor como um conjunto de
-//  capacidades e pode acioná-lo sozinho.
+//  WHAT IS THIS?
+//  Here we "wrap" the mentor in the MCP protocol (Model Context Protocol). This
+//  way, any compatible client (VS Code, Claude, an agent...) sees the mentor as a
+//  set of capabilities and can invoke it on its own.
 //
-//  O MCP tem TRÊS tipos de capacidade (e a gente expõe):
-//    • TOOL      → uma AÇÃO que o modelo executa. Aqui: `perguntar` e, se houver
-//                  perfil, `meu_progresso` (o que o aluno vem estudando).
-//    • RESOURCE  → um DOCUMENTO/contexto que descreve o serviço. Aqui: `mentor://base`.
-//    • PROMPT    → um TEMPLATE de instrução pronto. Aqui: `estudo-guiado`.
+//  MCP has THREE kinds of capability (and we expose):
+//    • TOOL      → an ACTION the model runs. Here: `ask` and, if there is a
+//                  profile, `my_progress` (what the student has been studying).
+//    • RESOURCE  → a DOCUMENT/context describing the service. Here: `mentor://base`.
+//    • PROMPT    → a ready-made instruction TEMPLATE. Here: `guided-study`.
 //
-//  DECISÃO DE ARQUITETURA:
-//  Esta função recebe o caso de uso `AnswerQuestion` PRONTO (injeção de
-//  dependência). Ela não sabe montar embedder/store/LLM — só "traduz" o mentor
-//  para o protocolo. Por isso dá pra testá-la com um mentor FALSO, sem rede.
+//  ARCHITECTURE DECISION:
+//  This function receives the `AnswerQuestion` use case READY (dependency
+//  injection). It doesn't know how to build the embedder/store/LLM — it just
+//  "translates" the mentor to the protocol. That's why we can test it with a FAKE
+//  mentor, with no network.
 // ============================================================================
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -28,86 +28,86 @@ import type { ProfilePort } from '../core/ports.ts';
 import { MAX_QUESTION_LEN } from '../core/validation.ts';
 
 export function createMentorMcpServer(useCase: AnswerQuestion, profile?: ProfilePort): McpServer {
-  const server = new McpServer({ name: 'ai-engineering-mentor', version: '0.1.0' });
+  const server = new McpServer({ name: 'ai-engineering-mentor', version: '0.2.0' });
 
-  // ---------- TOOL: perguntar ----------
+  // ---------- TOOL: ask ----------
   server.registerTool(
-    'perguntar',
+    'ask',
     {
-      title: 'Perguntar ao mentor',
+      title: 'Ask the mentor',
       description:
-        'Faz uma pergunta ao mentor de programação. Ele responde ancorado na base ' +
-        'de conhecimento (RAG), de forma socrática, e cita as fontes usadas.',
+        'Asks the programming mentor a question. It answers grounded in the ' +
+        'knowledge base (RAG), in a Socratic way, and cites the sources it used.',
       inputSchema: {
-        // Validação na borda (Etapa 12): recusa vazio e limita o tamanho — o zod
-        // barra antes mesmo de chegar ao caso de uso, com mensagem clara.
-        pergunta: z
+        // Edge validation (Step 12): reject empty and cap the length — zod blocks
+        // it before it even reaches the use case, with a clear message.
+        question: z
           .string()
-          .min(1, 'A pergunta não pode ser vazia.')
-          .max(MAX_QUESTION_LEN, `Pergunta muito longa (máximo ${MAX_QUESTION_LEN} caracteres).`)
-          .describe('A pergunta do aluno'),
-        sessao: z
+          .min(1, 'The question cannot be empty.')
+          .max(MAX_QUESTION_LEN, `Question too long (maximum ${MAX_QUESTION_LEN} characters).`)
+          .describe("The student's question"),
+        session: z
           .string()
           .max(200)
           .optional()
-          .describe('Identificador da conversa, para o mentor lembrar dos turnos. Opcional.'),
+          .describe('Conversation id, so the mentor remembers the turns. Optional.'),
       },
     },
-    async ({ pergunta, sessao }) => {
-      const answer = await useCase.execute(pergunta, sessao);
-      const fontes = answer.sources
+    async ({ question, session }) => {
+      const answer = await useCase.execute(question, session);
+      const sources = answer.sources
         .map((s, i) => `[${i + 1}] ${s.source} (chunk #${s.position})`)
         .join('\n');
-      const texto = fontes ? `${answer.text}\n\n📚 Fontes:\n${fontes}` : answer.text;
-      return { content: [{ type: 'text', text: texto }] };
+      const text = sources ? `${answer.text}\n\n📚 Sources:\n${sources}` : answer.text;
+      return { content: [{ type: 'text', text }] };
     },
   );
 
-  // ---------- TOOL: meu_progresso (só quando há perfil) ----------
-  // Expõe a visão AGREGADA do estudo do aluno: quantas perguntas fez, quais
-  // fontes mais tocou e as últimas dúvidas. É a segunda capacidade da Etapa 10.
+  // ---------- TOOL: my_progress (only when there is a profile) ----------
+  // Exposes the AGGREGATE view of the student's study: how many questions they
+  // asked, which sources they touched most, and the latest questions. Step 10.
   if (profile) {
     server.registerTool(
-      'meu_progresso',
+      'my_progress',
       {
-        title: 'Meu progresso',
+        title: 'My progress',
         description:
-          'Mostra o perfil de aprendizado do aluno: total de perguntas, as fontes ' +
-          'mais consultadas e as últimas dúvidas. Use o mesmo identificador de sessão.',
+          "Shows the student's learning profile: total questions, the most " +
+          'consulted sources, and the latest questions. Use the same session id.',
         inputSchema: {
-          sessao: z
+          session: z
             .string()
             .optional()
-            .describe('Identificador do aluno/conversa. Padrão: "default".'),
+            .describe('Student/conversation id. Default: "default".'),
         },
       },
-      async ({ sessao }) => {
-        const resumo = await profile.summary(sessao ?? 'default');
-        if (resumo.total === 0) {
-          return { content: [{ type: 'text', text: 'Ainda não há estudos registrados nesta sessão.' }] };
+      async ({ session }) => {
+        const summary = await profile.summary(session ?? 'default');
+        if (summary.total === 0) {
+          return { content: [{ type: 'text', text: 'No studies recorded in this session yet.' }] };
         }
-        const fontes = resumo.porFonte
-          .map((f) => `- ${f.source}: ${f.count} vez(es)`)
+        const sources = summary.porFonte
+          .map((f) => `- ${f.source}: ${f.count} time(s)`)
           .join('\n');
-        const ultimas = resumo.ultimas.map((q, i) => `${i + 1}. ${q}`).join('\n');
-        const texto =
-          `📈 Progresso do aluno\n\n` +
-          `Perguntas feitas: ${resumo.total}\n\n` +
-          `Fontes mais consultadas:\n${fontes}\n\n` +
-          `Últimas perguntas:\n${ultimas}`;
-        return { content: [{ type: 'text', text: texto }] };
+        const recent = summary.ultimas.map((q, i) => `${i + 1}. ${q}`).join('\n');
+        const text =
+          `📈 Student progress\n\n` +
+          `Questions asked: ${summary.total}\n\n` +
+          `Most consulted sources:\n${sources}\n\n` +
+          `Recent questions:\n${recent}`;
+        return { content: [{ type: 'text', text }] };
       },
     );
   }
 
-  // ---------- RESOURCE: descrição da base ----------
-  // Dá contexto ao cliente/LLM sobre o que o mentor faz, sem precisar perguntar.
+  // ---------- RESOURCE: knowledge-base description ----------
+  // Gives the client/LLM context about what the mentor does, without asking.
   server.registerResource(
-    'base-conhecimento',
+    'knowledge-base',
     'mentor://base',
     {
-      title: 'Base de conhecimento do mentor',
-      description: 'O que o mentor sabe e como usá-lo.',
+      title: "Mentor's knowledge base",
+      description: 'What the mentor knows and how to use it.',
       mimeType: 'text/markdown',
     },
     async (uri) => ({
@@ -115,31 +115,31 @@ export function createMentorMcpServer(useCase: AnswerQuestion, profile?: Profile
         {
           uri: uri.href,
           text:
-            '# Mentor de Engenharia de Software\n\n' +
-            'Respondo perguntas ancoradas numa base de conhecimento própria (RAG), ' +
-            'de forma socrática (pergunta + dica) e citando as fontes.\n\n' +
-            'Use a tool `perguntar` com a sua dúvida. Passe `sessao` para eu lembrar da conversa.',
+            '# Software Engineering Mentor\n\n' +
+            'I answer questions grounded in an own knowledge base (RAG), in a ' +
+            'Socratic way (question + hint) and citing the sources.\n\n' +
+            'Use the `ask` tool with your question. Pass `session` so I remember the conversation.',
         },
       ],
     }),
   );
 
-  // ---------- PROMPT: estudo guiado ----------
-  // Um "atalho" pronto: dado um tema, gera a instrução ideal para começar.
+  // ---------- PROMPT: guided study ----------
+  // A ready-made "shortcut": given a topic, it generates the ideal starting instruction.
   server.registerPrompt(
-    'estudo-guiado',
+    'guided-study',
     {
-      title: 'Estudo guiado',
-      description: 'Gera uma instrução pronta para estudar um tema com o mentor.',
-      argsSchema: { tema: z.string().describe('O tema que você quer estudar') },
+      title: 'Guided study',
+      description: 'Generates a ready-made instruction to study a topic with the mentor.',
+      argsSchema: { topic: z.string().describe('The topic you want to study') },
     },
-    ({ tema }) => ({
+    ({ topic }) => ({
       messages: [
         {
           role: 'user',
           content: {
             type: 'text',
-            text: `Quero estudar "${tema}". Use a tool "perguntar" e me conduza pelo método socrático, citando as fontes.`,
+            text: `I want to study "${topic}". Use the "ask" tool and guide me with the Socratic method, citing the sources.`,
           },
         },
       ],

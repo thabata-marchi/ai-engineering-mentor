@@ -28,15 +28,15 @@ export const MAX_QUESTION_LEN = 2000;
  * teto. Devolve o texto já aparado (para o caller usar o valor normalizado).
  */
 export function validateQuestion(text: string, maxLen: number = MAX_QUESTION_LEN): string {
-  const limpo = text.trim();
-  if (limpo.length === 0) {
-    throw new ValidationError('A pergunta está vazia.');
+  const clean = text.trim();
+  if (clean.length === 0) {
+    throw new ValidationError('The question is empty.');
   }
-  if (limpo.length > maxLen) {
+  if (clean.length > maxLen) {
     throw new ValidationError(
-      `A pergunta é muito longa (${limpo.length} caracteres; máximo ${maxLen}). ` +
-        'Divida em perguntas menores.',
+      `The question is too long (${clean.length} characters; maximum ${maxLen}). ` +
+        'Split it into smaller questions.',
     );
   }
-  return limpo;
+  return clean;
 }

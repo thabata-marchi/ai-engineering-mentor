@@ -16,7 +16,7 @@ test('recusa pergunta vazia (ou só espaços)', () => {
 
 test('recusa pergunta acima do teto', () => {
   const gigante = 'a'.repeat(MAX_QUESTION_LEN + 1);
-  assert.throws(() => validateQuestion(gigante), /muito longa/);
+  assert.throws(() => validateQuestion(gigante), /too long/);
 });
 
 test('aceita no limite exato', () => {

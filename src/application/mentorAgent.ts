@@ -26,15 +26,15 @@
 import type { AgentResult, AgentStep, ChatMessage } from '../core/models.ts';
 import type { AgentToolsPort, ToolCallingLLMPort } from '../core/ports.ts';
 
-/** Instrução base do agente: como se comportar e quando parar. */
+/** The agent's base instruction: how to behave and when to stop. */
 export const SYSTEM_PROMPT_AGENTE = [
-  'Você é um agente mentor de estudos de engenharia de software.',
-  'Você tem ferramentas (tools) para agir. Use-as para cumprir o objetivo do aluno.',
-  'Regras:',
-  '1. Use a tool "perguntar" para consultar a base de conhecimento (RAG) — ela cita as fontes.',
-  '2. Se precisar saber o que o aluno já estudou, use a tool "meu_progresso".',
-  '3. Baseie-se SOMENTE no que as tools retornarem. Não invente. Cite as fontes que vierem.',
-  '4. Quando tiver o suficiente para responder ao objetivo, escreva a resposta final SEM chamar mais tools.',
+  'You are a mentor agent for software engineering study.',
+  "You have tools to act with. Use them to fulfill the student's goal.",
+  'Rules:',
+  '1. Use the "ask" tool to query the knowledge base (RAG) — it cites the sources.',
+  '2. If you need to know what the student has already studied, use the "my_progress" tool.',
+  '3. Rely ONLY on what the tools return. Do not make things up. Cite the sources that come back.',
+  '4. When you have enough to answer the goal, write the final answer WITHOUT calling more tools.',
 ].join('\n');
 
 export interface MentorAgentDeps {

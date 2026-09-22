@@ -97,14 +97,14 @@ test('MCP: tool meu_progresso devolve o resumo do aluno', async () => {
 
   try {
     const { tools } = await client.listTools();
-    assert.ok(tools.some((t) => t.name === 'meu_progresso'));
+    assert.ok(tools.some((t) => t.name === 'my_progress'));
 
     const result = await client.callTool({
-      name: 'meu_progresso',
-      arguments: { sessao: 'sessao-X' },
+      name: 'my_progress',
+      arguments: { session: 'sessao-X' },
     });
     const texto = (result.content as { type: string; text: string }[])[0].text;
-    assert.match(texto, /Perguntas feitas: 1/);
+    assert.match(texto, /Questions asked: 1/);
     assert.match(texto, /srp\.md/);
   } finally {
     await client.close();
@@ -124,8 +124,8 @@ test('MCP: sem perfil, a tool meu_progresso não é registrada', async () => {
 
   try {
     const { tools } = await client.listTools();
-    assert.ok(!tools.some((t) => t.name === 'meu_progresso'));
-    assert.ok(tools.some((t) => t.name === 'perguntar'));
+    assert.ok(!tools.some((t) => t.name === 'my_progress'));
+    assert.ok(tools.some((t) => t.name === 'ask'));
   } finally {
     await client.close();
     await server.close();

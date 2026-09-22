@@ -23,8 +23,8 @@ export class RateLimitError extends Error {
   readonly retryAfterMs: number; // quanto esperar até liberar de novo
   constructor(retryAfterMs: number) {
     super(
-      `Limite de chamadas excedido. Tente novamente em ~${Math.ceil(retryAfterMs / 1000)}s. ` +
-        '(protege sua cota do OpenRouter — ajuste em RATE_LIMIT_MAX/RATE_LIMIT_WINDOW_MS)',
+      `Rate limit exceeded. Try again in ~${Math.ceil(retryAfterMs / 1000)}s. ` +
+        '(protects your provider quota — tune via RATE_LIMIT_MAX/RATE_LIMIT_WINDOW_MS)',
     );
     this.name = 'RateLimitError';
     this.retryAfterMs = retryAfterMs;
@@ -44,8 +44,8 @@ export class RateLimiter {
   private readonly hits: number[] = []; // horários das chamadas recentes (ms)
 
   constructor(config: RateLimiterConfig) {
-    if (config.max <= 0) throw new Error('RateLimiter: max deve ser > 0');
-    if (config.windowMs <= 0) throw new Error('RateLimiter: windowMs deve ser > 0');
+    if (config.max <= 0) throw new Error('RateLimiter: max must be > 0');
+    if (config.windowMs <= 0) throw new Error('RateLimiter: windowMs must be > 0');
     this.max = config.max;
     this.windowMs = config.windowMs;
     this.now = config.now ?? Date.now;

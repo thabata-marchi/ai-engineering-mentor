@@ -29,7 +29,7 @@ class FakeTools implements AgentToolsPort {
     this.resultado = resultado;
   }
   async listTools(): Promise<ToolSpec[]> {
-    return [{ name: 'perguntar', description: 'consulta a base', parameters: { type: 'object' } }];
+    return [{ name: 'ask', description: 'query the base', parameters: { type: 'object' } }];
   }
   async callTool(name: string, argumentsJson: string): Promise<string> {
     this.chamadas.push({ name, args: argumentsJson });
@@ -41,7 +41,7 @@ test('agente: chama a tool, observa o resultado e então responde (loop ReAct)',
   const tools = new FakeTools('SRP: uma classe, um motivo para mudar [1]');
   // Roteiro: 1ª rodada pede a tool "perguntar"; 2ª rodada dá a resposta final.
   const llm = new FakeToolCallingLLM([
-    { content: '', toolCalls: [{ id: 'c1', name: 'perguntar', arguments: '{"pergunta":"o que é SRP?"}' }] },
+    { content: '', toolCalls: [{ id: 'c1', name: 'ask', arguments: '{"question":"o que é SRP?"}' }] },
     { content: 'Em resumo, SRP é... [1]', toolCalls: [] },
   ]);
   const agent = new MentorAgent({ llm, tools });
@@ -51,10 +51,10 @@ test('agente: chama a tool, observa o resultado e então responde (loop ReAct)',
   assert.equal(res.answer, 'Em resumo, SRP é... [1]');
   assert.equal(res.stoppedByLimit, false);
   // Executou a tool pedida, com os argumentos do modelo.
-  assert.deepEqual(tools.chamadas, [{ name: 'perguntar', args: '{"pergunta":"o que é SRP?"}' }]);
+  assert.deepEqual(tools.chamadas, [{ name: 'ask', args: '{"question":"o que é SRP?"}' }]);
   // O trace registra o passo.
   assert.equal(res.steps.length, 1);
-  assert.equal(res.steps[0].tool, 'perguntar');
+  assert.equal(res.steps[0].tool, 'ask');
   // Na 2ª chamada ao LLM, o resultado da tool foi devolvido como mensagem 'tool'.
   const msgs2 = llm.calls[1].messages;
   assert.ok(msgs2.some((m) => m.role === 'tool' && m.content.includes('SRP: uma classe')));
@@ -65,7 +65,7 @@ test('agente: respeita o teto de passos e marca stoppedByLimit', async () => {
   // LLM "teimoso": SEMPRE pede tool → nunca conclui sozinho.
   const semprePedeTool = {
     content: '',
-    toolCalls: [{ id: 'x', name: 'perguntar', arguments: '{}' }],
+    toolCalls: [{ id: 'x', name: 'ask', arguments: '{}' }],
   };
   const llm = new FakeToolCallingLLM(
     [semprePedeTool, semprePedeTool], // maxSteps=2 → 2 rodadas com tool
@@ -98,13 +98,13 @@ test('McpAgentTools: lista e executa as tools do servidor MCP real', async () =>
     const tools = new McpAgentTools(client);
     const specs = await tools.listTools();
     // As tools do servidor viram ToolSpecs com schema (parameters).
-    assert.ok(specs.some((t) => t.name === 'perguntar'));
-    assert.ok(specs.some((t) => t.name === 'meu_progresso'));
-    const perguntar = specs.find((t) => t.name === 'perguntar')!;
+    assert.ok(specs.some((t) => t.name === 'ask'));
+    assert.ok(specs.some((t) => t.name === 'my_progress'));
+    const perguntar = specs.find((t) => t.name === 'ask')!;
     assert.equal(typeof perguntar.parameters, 'object');
 
     // Executa a tool via protocolo e recebe o texto.
-    const texto = await tools.callTool('perguntar', '{"pergunta":"o que é SRP?"}');
+    const texto = await tools.callTool('ask', '{"question":"o que é SRP?"}');
     assert.match(texto, /resposta MCP/);
   } finally {
     await client.close();
@@ -128,7 +128,7 @@ test('agente end-to-end: usa o MCP real como ferramenta (LLM roteirizado)', asyn
   try {
     const tools = new McpAgentTools(client);
     const llm = new FakeToolCallingLLM([
-      { content: '', toolCalls: [{ id: 'c1', name: 'perguntar', arguments: '{"pergunta":"SRP?"}' }] },
+      { content: '', toolCalls: [{ id: 'c1', name: 'ask', arguments: '{"question":"SRP?"}' }] },
       { content: 'Resposta final do agente', toolCalls: [] },
     ]);
     const agent = new MentorAgent({ llm, tools });
