@@ -1,22 +1,22 @@
 // ============================================================================
-//  DEMO — o RAG (a parte de RETRIEVAL) funcionando de ponta a ponta
+//  DEMO — the RAG (the RETRIEVAL part) working end to end
 // ============================================================================
 //
-//  O que este script faz, na ordem do RAG:
-//    1. INGESTÃO:  lê os .md de examples/docs, quebra em chunks, gera embeddings
-//                  e guarda no vector store.
-//    2. BUSCA:     para cada pergunta, gera o embedding da pergunta e recupera
-//                  os chunks mais parecidos — mostrando o score e a fonte.
+//  What this script does, in RAG order:
+//    1. INGESTION: reads the .md files in examples/docs, splits into chunks,
+//                  generates embeddings and stores them in the vector store.
+//    2. SEARCH:    for each question, embeds the question and retrieves the most
+//                  similar chunks — showing the score and the source.
 //
-//  Ainda NÃO há LLM aqui (isso é a Etapa 4). Este demo prova que a "recuperação"
-//  — o R do RAG — está funcionando: dada uma pergunta, achamos o trecho certo.
+//  There is NO real LLM here (that's Step 4). This demo proves that "retrieval" —
+//  the R of RAG — works: given a question, we find the right snippet.
 //
-//  POR QUE FakeEmbedder no demo?
-//  Para você conseguir rodar AGORA, sem baixar modelo nem internet. Para usar o
-//  embedder de verdade, faça `npm install` e troque a linha marcada com [TROCA]
-//  por `new LocalEmbedder()`.
+//  WHY FakeEmbedder in the demo?
+//  So you can run it NOW, without downloading a model or using the internet. To use
+//  the real embedder, run `npm install` and swap the line marked [SWAP] for
+//  `new LocalEmbedder()`.
 //
-//  Como rodar:
+//  How to run:
 //    node --experimental-strip-types examples/demo.ts
 // ============================================================================
 
@@ -29,52 +29,52 @@ import { InMemoryVectorStore } from '../src/adapters/inMemoryVectorStore.ts';
 import { AnswerQuestion } from '../src/application/answerQuestion.ts';
 import type { LLMPort } from '../src/core/ports.ts';
 import { FakeEmbedder } from '../tests/helpers/fakeEmbedder.ts';
-// import { LocalEmbedder } from '../src/adapters/localEmbedder.ts'; // embedder real
+// import { LocalEmbedder } from '../src/adapters/localEmbedder.ts'; // real embedder
 
 const DOCS_DIR = new URL('./docs/', import.meta.url).pathname;
 
-// LLM de mentira só para o demo: em vez de gerar texto, ele DEVOLVE o prompt que
-// recebeu — assim você VÊ o contexto que seria enviado a um LLM de verdade.
-// Na Etapa 4b, trocamos isto por um adapter real (ex.: OpenRouter).
+// A fake LLM just for the demo: instead of generating text, it RETURNS the prompt
+// it received — so you SEE the context that would be sent to a real LLM. In Step 4b
+// we swap this for a real adapter (e.g. OpenRouter).
 class EchoLLM implements LLMPort {
   async generate(_systemPrompt: string, userPrompt: string): Promise<string> {
-    return `(resposta simulada — um LLM real responderia usando este contexto)\n${userPrompt}`;
+    return `(simulated answer — a real LLM would answer using this context)\n${userPrompt}`;
   }
 }
 
 async function main() {
-  // Montamos as peças (cada uma respeita um port → poderíamos trocar qualquer
-  // uma sem mexer no resto).
+  // We assemble the pieces (each honors a port → we could swap any one without
+  // touching the rest).
   const parser = new TextFileParser();
   const chunker = new SlidingWindowChunker({ chunkSizeWords: 60, overlapWords: 10 });
-  const embedder = new FakeEmbedder(); // [TROCA] -> new LocalEmbedder()
+  const embedder = new FakeEmbedder(); // [SWAP] -> new LocalEmbedder()
   const store = new InMemoryVectorStore();
 
-  // ---------- 1. INGESTÃO ----------
+  // ---------- 1. INGESTION ----------
   const files = (await readdir(DOCS_DIR)).filter((f) => f.endsWith('.md'));
   for (const file of files) {
     const doc = await parser.parse(join(DOCS_DIR, file));
     const chunks = chunker.chunk(doc);
     const embeddings = await embedder.embed(chunks.map((c) => c.text));
     await store.add(chunks, embeddings);
-    console.log(`📄 indexado: ${file}  (${chunks.length} chunk(s))`);
+    console.log(`📄 indexed: ${file}  (${chunks.length} chunk(s))`);
   }
 
-  // ---------- 2. PERGUNTA → RESPOSTA COM FONTES (o caso de uso completo) ----------
+  // ---------- 2. QUESTION → ANSWER WITH SOURCES (the full use case) ----------
   const useCase = new AnswerQuestion({ embedder, store, llm: new EchoLLM(), topK: 2 });
 
-  const perguntas = [
-    'como isolar o acesso ao banco de dados?',
-    'por que dividir responsabilidades de uma classe?',
-    'para que serve a sobreposição entre pedaços?',
+  const questions = [
+    'how to isolate database access?',
+    'why split a class into responsibilities?',
+    'what is the overlap between pieces for?',
   ];
 
-  for (const pergunta of perguntas) {
-    const answer = await useCase.execute(pergunta);
+  for (const question of questions) {
+    const answer = await useCase.execute(question);
 
-    console.log(`\n❓ ${pergunta}`);
-    // Aqui o texto é simulado (EchoLLM). O importante são as FONTES rastreáveis:
-    console.log('   Fontes citadas:');
+    console.log(`\n❓ ${question}`);
+    // Here the text is simulated (EchoLLM). What matters are the traceable SOURCES:
+    console.log('   Cited sources:');
     answer.sources.forEach((s, i) => {
       console.log(`     [${i + 1}] ${s.source} (chunk #${s.position})`);
     });

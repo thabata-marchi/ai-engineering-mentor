@@ -1,22 +1,22 @@
 // ============================================================================
-//  ask.ts — UMA pergunta, UMA resposta (modo tiro único)
+//  ask.ts — ONE question, ONE answer (single-shot mode)
 // ============================================================================
-//  Pré-requisitos: npm install + OPENROUTER_API_KEY no .env.
-//  Rodar:  npm run ask -- "o que é o single responsibility principle?"
-//  (Para CONVERSAR com memória, use `npm run chat`.)
+//  Prerequisites: npm install + the provider key in .env (see LLM_PROVIDER).
+//  Run:  npm run ask -- "what is the single responsibility principle?"
+//  (To CHAT with memory, use `npm run chat`.)
 // ============================================================================
 
 import { AnswerQuestion } from '../src/application/answerQuestion.ts';
 import { setupMentor } from './setup.ts';
 
 async function main() {
-  const pergunta = process.argv.slice(2).join(' ').trim();
-  if (!pergunta) {
-    console.error('Uso: npm run ask -- "sua pergunta aqui"');
+  const question = process.argv.slice(2).join(' ').trim();
+  if (!question) {
+    console.error('Usage: npm run ask -- "your question here"');
     process.exit(1);
   }
 
-  // A chave é resolvida pelo provedor escolhido (LLM_PROVIDER) dentro do setup.
+  // The key is resolved by the chosen provider (LLM_PROVIDER) inside setup.
   const mentor = await setupMentor();
   const useCase = new AnswerQuestion({
     embedder: mentor.embedder,
@@ -27,12 +27,12 @@ async function main() {
     lang: mentor.lang,
   });
 
-  console.log(`🎓 Modo: ${mentor.mode} | 🗄️  Store: ${mentor.usingMongo ? 'MongoDB' : 'memória'}`);
-  console.log(`\n❓ ${pergunta}\n`);
-  const answer = await useCase.execute(pergunta); // sem sessionId = sem memória
+  console.log(`🎓 Mode: ${mentor.mode} | 🗄️  Store: ${mentor.usingMongo ? 'MongoDB' : 'memory'}`);
+  console.log(`\n❓ ${question}\n`);
+  const answer = await useCase.execute(question); // no sessionId = no memory
 
   console.log(answer.text);
-  console.log('\n📚 Fontes:');
+  console.log('\n📚 Sources:');
   answer.sources.forEach((s, i) => {
     console.log(`  [${i + 1}] ${s.source} (chunk #${s.position})`);
   });
@@ -43,6 +43,6 @@ async function main() {
 main()
   .then(() => process.exit(0))
   .catch((err) => {
-    console.error('\n💥 Erro:', err.message);
+    console.error('\n💥 Error:', err.message);
     process.exit(1);
   });

@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 // ============================================================================
-//  mcp.ts — RODAR o mentor como servidor MCP (transporte STDIO)
+//  mcp.ts — RUN the mentor as an MCP server (STDIO transport)
 // ============================================================================
 //
-//  É este arquivo que o VSCode (ou outro cliente MCP) executa. Ele monta o
-//  mentor de verdade e o expõe pelo protocolo, via ENTRADA/SAÍDA padrão (STDIO).
+//  This is the file that VS Code (or another MCP client) executes. It assembles
+//  the real mentor and exposes it over the protocol, via standard INPUT/OUTPUT (STDIO).
 //
-//  ⚠️ No STDIO, o stdout é do PROTOCOLO — por isso todos os logs do setup vão
-//  para o stderr (você os vê no terminal, mas eles não sujam a comunicação).
+//  ⚠️ In STDIO, stdout belongs to the PROTOCOL — that's why all setup logs go to
+//  stderr (you see them in the terminal, but they don't pollute the communication).
 //
-//  Rodar direto (pra testar):  npm run mcp
-//  No VSCode: use o .vscode/mcp.json (já incluído no projeto).
+//  Run directly (to test):  npm run mcp
+//  In VS Code: use the .vscode/mcp.json (already included in the project).
 // ============================================================================
 
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -20,28 +20,28 @@ import { createMentorMcpServer } from '../src/mcp/mentorServer.ts';
 import { setupMentor } from './setup.ts';
 
 async function main() {
-  // A chave é resolvida pelo provedor escolhido (LLM_PROVIDER) dentro do setup.
+  // The key is resolved by the chosen provider (LLM_PROVIDER) inside setup.
   const mentor = await setupMentor();
   const useCase = new AnswerQuestion({
     embedder: mentor.embedder,
     store: mentor.store,
     llm: mentor.llm,
     memory: mentor.memory,
-    profile: mentor.profile, // <- registra o perfil de estudo (Etapa 10)
+    profile: mentor.profile, // <- records the study profile (Step 10)
     topK: mentor.topK,
     mode: mentor.mode,
     lang: mentor.lang,
   });
 
-  // Passamos o perfil também ao servidor → habilita a tool `meu_progresso`.
+  // We pass the profile to the server too → enables the `my_progress` tool.
   const server = createMentorMcpServer(useCase, mentor.profile);
   await server.connect(new StdioServerTransport());
-  console.error('🔌 Servidor MCP do mentor no ar (STDIO). Aguardando o cliente...');
+  console.error('🔌 Mentor MCP server up (STDIO). Waiting for the client...');
 
-  // NÃO chamamos process.exit: o servidor precisa continuar vivo atendendo o cliente.
+  // We do NOT call process.exit: the server must stay alive serving the client.
 }
 
 main().catch((err) => {
-  console.error('\n💥 Erro:', err.message);
+  console.error('\n💥 Error:', err.message);
   process.exit(1);
 });

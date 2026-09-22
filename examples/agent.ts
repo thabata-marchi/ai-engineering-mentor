@@ -1,21 +1,22 @@
 // ============================================================================
-//  agent.ts — RODAR o AGENTE autônomo (Etapa 11)
+//  agent.ts — RUN the autonomous AGENT (Step 11)
 // ============================================================================
 //
-//  Junta tudo: monta o mentor (RAG + perfil), o expõe como servidor MCP, conecta
-//  um CLIENTE MCP a ele (transporte EM MEMÓRIA, mesmo processo) e entrega essas
-//  tools a um AGENTE. Você dá um OBJETIVO e o agente decide sozinho quais tools
-//  chamar até responder — citando o passo a passo real (rastreabilidade).
+//  It ties everything together: assembles the mentor (RAG + profile), exposes it as
+//  an MCP server, connects an MCP CLIENT to it (IN-MEMORY transport, same process)
+//  and hands those tools to an AGENT. You give a GOAL and the agent decides on its
+//  own which tools to call until it answers — citing the real step-by-step
+//  (traceability).
 //
-//  "O agente consome o MCP": as ferramentas dele são, literalmente, as tools do
-//  servidor MCP da Etapa 9 (`perguntar`, `meu_progresso`).
+//  "The agent consumes the MCP": its tools are, literally, the tools of the Step 9
+//  MCP server (`ask`, `my_progress`).
 //
-//  Rodar:   npm run agent -- "seu objetivo de estudo"
-//  Exemplo: npm run agent -- "me ajude a entender o Extrair Função"
+//  Run:      npm run agent -- "your study goal"
+//  Example:  npm run agent -- "help me understand Extract Function"
 //
-//  ⚠️ Precisa de um modelo com TOOL-CALLING confiável. Defina um em
-//  OPENROUTER_MODEL (veja o README, Etapa 11). Se o modelo não suportar tools,
-//  o agente responde direto (sem passos) — o comportamento fica visível.
+//  ⚠️ Needs a model with reliable TOOL-CALLING. Set one in LLM_MODEL (see the
+//  README, Step 17). If the model doesn't support tools, the agent answers directly
+//  (no steps) — the behavior stays visible.
 // ============================================================================
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -30,13 +31,13 @@ import { createMentorMcpServer } from '../src/mcp/mentorServer.ts';
 import { setupMentor } from './setup.ts';
 
 async function main() {
-  const objetivo = process.argv.slice(2).join(' ').trim();
-  if (!objetivo) {
-    console.error('Uso: npm run agent -- "seu objetivo de estudo"');
+  const goal = process.argv.slice(2).join(' ').trim();
+  if (!goal) {
+    console.error('Usage: npm run agent -- "your study goal"');
     process.exit(1);
   }
 
-  // 1. Monta o mentor (RAG + perfil) e o expõe como servidor MCP.
+  // 1. Assemble the mentor (RAG + profile) and expose it as an MCP server.
   const mentor = await setupMentor();
   const useCase = new AnswerQuestion({
     embedder: mentor.embedder,
@@ -50,42 +51,42 @@ async function main() {
   });
   const server = createMentorMcpServer(useCase, mentor.profile);
 
-  // 2. Conecta um CLIENTE MCP ao servidor (em memória, mesmo processo).
+  // 2. Connect an MCP CLIENT to the server (in memory, same process).
   const [clientT, serverT] = InMemoryTransport.createLinkedPair();
-  const client = new Client({ name: 'mentor-agent', version: '0.1.0' });
+  const client = new Client({ name: 'mentor-agent', version: '0.2.0' });
   await Promise.all([server.connect(serverT), client.connect(clientT)]);
 
-  // 3. O agente: cérebro = LLM com tool-calling (multi-provedor, Etapa 17); mãos =
-  //    as tools do MCP. O provedor vem de LLM_PROVIDER — o mesmo do RAG.
-  //    ⚠️ o modelo escolhido PRECISA suportar tool-calling.
+  // 3. The agent: brain = tool-calling LLM (multi-provider, Step 17); hands = the
+  //    MCP tools. The provider comes from LLM_PROVIDER — the same as the RAG.
+  //    ⚠️ the chosen model MUST support tool-calling.
   const timeoutMs = process.env.LLM_TIMEOUT_MS ? Number(process.env.LLM_TIMEOUT_MS) : 120_000;
   const { llm: rawChat, provider, model } = createChatLLMFromEnv(timeoutMs);
-  console.error(`🧠 Agente usando: ${provider} | ${model}`);
-  // Mesmo RateLimiter do setup: o agente pode chamar o LLM várias vezes no loop,
-  // então o rate limit é ainda mais importante aqui (protege a cota).
+  console.error(`🧠 Agent using: ${provider} | ${model}`);
+  // Same RateLimiter as setup: the agent may call the LLM several times in the loop,
+  // so the rate limit is even more important here (protects the quota).
   const chatLLM = new RateLimitedChatLLM(rawChat, mentor.limiter);
   const agent = new MentorAgent({ llm: chatLLM, tools: new McpAgentTools(client) });
 
-  console.error(`🎯 Objetivo: ${objetivo}\n🤖 Agente pensando (pode chamar tools várias vezes)...\n`);
+  console.error(`🎯 Goal: ${goal}\n🤖 Agent thinking (it may call tools several times)...\n`);
 
   try {
-    const res = await agent.run(objetivo);
+    const res = await agent.run(goal);
 
-    // Mostra o passo a passo (o que o agente FEZ) — rastreabilidade.
+    // Show the step-by-step (what the agent DID) — traceability.
     if (res.steps.length > 0) {
-      console.log('🧭 Passos do agente:');
+      console.log('🧭 Agent steps:');
       res.steps.forEach((s, i) => {
-        const resumo = s.result.length > 160 ? s.result.slice(0, 160) + '…' : s.result;
-        console.log(`  ${i + 1}. ${s.tool}(${s.arguments}) → ${resumo}`);
+        const preview = s.result.length > 160 ? s.result.slice(0, 160) + '…' : s.result;
+        console.log(`  ${i + 1}. ${s.tool}(${s.arguments}) → ${preview}`);
       });
       console.log('');
     } else {
-      console.log('ℹ️  O agente respondeu sem usar tools (o modelo pode não suportar tool-calling).\n');
+      console.log('ℹ️  The agent answered without using tools (the model may not support tool-calling).\n');
     }
 
-    console.log(`💬 Resposta final:\n${res.answer}`);
+    console.log(`💬 Final answer:\n${res.answer}`);
     if (res.stoppedByLimit) {
-      console.log('\n⚠️  (parou por atingir o limite de passos)');
+      console.log('\n⚠️  (stopped after reaching the step limit)');
     }
   } finally {
     await client.close();
@@ -97,6 +98,6 @@ async function main() {
 main()
   .then(() => process.exit(0))
   .catch((err) => {
-    console.error('\n💥 Erro:', err.message);
+    console.error('\n💥 Error:', err.message);
     process.exit(1);
   });
