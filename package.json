@@ -4,7 +4,7 @@
     "access": "public"
   },
   "version": "0.2.0",
-  "description": "Mentor de programação com IA (RAG socrático + MCP + agente) — laboratório de estudo em TypeScript, arquitetura hexagonal",
+  "description": "AI programming mentor (Socratic RAG + MCP + agent) — a study project in TypeScript, hexagonal architecture, multi-provider (OpenRouter/OpenAI/Anthropic/Gemini)",
   "type": "module",
   "main": "./dist/src/index.js",
   "exports": {
@@ -46,7 +46,7 @@
     "hexagonal-architecture",
     "openrouter",
     "embeddings",
-    "estudo"
+    "study"
   ],
   "author": "Thabata Marchi <tatha.marchi@gmail.com>",
   "license": "MIT",
