@@ -1,5 +1,8 @@
 {
-  "name": "ai-engineering-mentor",
+  "name": "@thabata-marchi/ai-engineering-mentor",
+  "publishConfig": {
+    "access": "public"
+  },
   "version": "0.1.0",
   "description": "Mentor de programação com IA (RAG socrático + MCP + agente) — laboratório de estudo em TypeScript, arquitetura hexagonal",
   "type": "module",
@@ -8,7 +11,7 @@
     ".": "./dist/src/index.js"
   },
   "bin": {
-    "ai-engineering-mentor-mcp": "./dist/examples/mcp.js"
+    "ai-engineering-mentor-mcp": "dist/examples/mcp.js"
   },
   "engines": {
     "node": ">=22.6.0"
