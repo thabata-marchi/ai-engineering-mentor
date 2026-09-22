@@ -1,37 +1,36 @@
-# Contribuindo
+# Contributing
 
-Obrigada pelo interesse! Este é um **projeto de estudo** (pós em Engenharia de IA —
-UNIPDS), construído etapa por etapa com foco didático. Contribuições e dúvidas são
-bem-vindas.
+Thanks for your interest! This is a **study project** (AI Engineering postgrad —
+UNIPDS), built step by step with a didactic focus. Contributions and questions are welcome.
 
-## Princípios do projeto
-- **Arquitetura hexagonal:** `core` (lógica pura, sem I/O) → `application` (casos de
-  uso) → `adapters` (tecnologia concreta). Dependa de **ports** (interfaces), nunca
-  de implementações.
-- **Testes desde o dia 1:** todo comportamento novo vem com teste (`node:test`),
-  usando dublês (fakes) — nada de rede/custo nos testes.
-- **TypeScript nativo, sem build:** rodamos com `--experimental-strip-types`. Por
-  isso **não** use "parameter properties" (`constructor(private x)`) — declare os
-  campos explicitamente.
-- **Comentários em português, didáticos:** o código é um diário de aprendizado.
-- **Commits pequenos e descritivos.**
+## Project principles
+- **Hexagonal architecture:** `core` (pure logic, no I/O) → `application` (use cases)
+  → `adapters` (concrete technology). Depend on **ports** (interfaces), never on
+  implementations.
+- **Tests from day one:** every new behavior comes with a test (`node:test`), using
+  doubles (fakes) — no network/cost in the tests.
+- **Native TypeScript, no build:** we run with `--experimental-strip-types`. So **do
+  not** use "parameter properties" (`constructor(private x)`) — declare the fields
+  explicitly.
+- **Didactic English comments:** the code is a learning log.
+- **Small, descriptive commits.**
 
-## Rodando localmente
+## Running locally
 ```bash
 npm install
-npm test          # roda toda a suíte
-npm run typecheck # checa os tipos (tsc --noEmit)
-npm run demo      # fluxo com dublês, sem configurar nada
+npm test          # runs the whole suite
+npm run typecheck # checks the types (tsc --noEmit)
+npm run demo      # flow with doubles, no config needed
 ```
-Requer **Node >= 22.6** (ideal Node 24).
+Requires **Node >= 22.6** (ideally Node 24).
 
-## Antes de abrir um PR
-1. `npm run typecheck` sem erros.
-2. `npm test` verde.
-3. Comentários e nomes claros; mantenha o padrão hexagonal.
-4. Descreva o "porquê" no PR, não só o "o quê".
+## Before opening a PR
+1. `npm run typecheck` with no errors.
+2. `npm test` green.
+3. Clear comments and names; keep the hexagonal pattern.
+4. Describe the "why" in the PR, not just the "what".
 
-## Base de conhecimento e segredos
-- **Nunca** comite livros/PDFs (direitos autorais) — a pasta `data/` é ignorada.
-- **Nunca** comite segredos. Use `.env` (ignorado); veja `.env.example`.
-- Reporte questões de segurança conforme o `SECURITY.md`.
+## Knowledge base and secrets
+- **Never** commit books/PDFs (copyright) — the `data/` folder is ignored.
+- **Never** commit secrets. Use `.env` (ignored); see `.env.example`.
+- Report security issues per `SECURITY.md`.

@@ -1,65 +1,70 @@
-# Publicação (checklist)
+# Publishing (checklist)
 
-> ⚠️ **Estes passos são executados por VOCÊ.** Eles envolvem credenciais (login no
-> npm/GitHub) e ações irreversíveis (publicar). Eu (assistente) preparo o pacote,
-> mas não faço login, não toco em tokens e não publico por você.
+> ⚠️ **These steps are run by YOU.** They involve credentials (npm/GitHub login) and
+> irreversible actions (publishing). The assistant prepares the package, but doesn't
+> log in, doesn't touch tokens and doesn't publish for you.
 
-## 0. Antes de tudo
-- [ ] Decida se o repositório vai virar **público** no GitHub (hoje é privado).
-- [ ] Confirme que **nenhum segredo** está versionado: `git grep -i "sk-or"` deve
-      voltar vazio; a pasta `data/` e o `.env` devem estar ignorados.
+## 0. First of all
+- [ ] Decide whether the repository will become **public** on GitHub.
+- [ ] Confirm that **no secret** is versioned: `git grep -i "sk-or"` should come back
+      empty; the `data/` folder and `.env` must be ignored.
 
-## 1. Verificação local (pode rodar à vontade)
+## 1. Local verification (run it freely)
 ```bash
-npm run typecheck        # tipos ok
-npm test                 # suíte verde
-npm run build            # gera o dist/ (JS puro) que será publicado
-npm pack --dry-run       # mostra EXATAMENTE quais arquivos irão no pacote
+npm run typecheck        # types ok
+npm test                 # green suite
+npm run build            # generates dist/ (plain JS) that will be published
+npm pack --dry-run       # shows EXACTLY which files go in the package
 ```
-> O `npm pack --dry-run` respeita o campo `files` do package.json. Confira que
-> **não** entram `src/`, `tests/`, `data/`, `.env`, `.vscode/` — só `dist/`,
-> `README.md`, `LICENSE`, `SECURITY.md` e `.env.example`.
+> `npm pack --dry-run` respects the package.json `files` field. Check that `src/`,
+> `tests/`, `data/`, `.env`, `.vscode/` do **not** go in — only `dist/`, `README.md`,
+> `LICENSE`, `SECURITY.md` and `.env.example`.
 
-## 2. Nome do pacote (checar disponibilidade)
+## 2. Package name (check availability)
 ```bash
-npm view ai-engineering-mentor   # se responder 404, o nome está livre
+npm view ai-engineering-mentor   # if it returns 404, the name is free
 ```
-- [ ] Se o nome estiver **ocupado**, use um escopo com seu usuário npm:
-      troque `"name"` para `"@SEU_USUARIO/ai-engineering-mentor"` e adicione
-      `"publishConfig": { "access": "public" }` no package.json.
+- [ ] If the name is **taken**, use a scope with your npm username: set `"name"` to
+      `"@YOUR_USERNAME/ai-engineering-mentor"` and add
+      `"publishConfig": { "access": "public" }` in package.json.
+      (This project is published as `@thabata-marchi/ai-engineering-mentor`.)
 
-## 3. Publicar no npm (VOCÊ executa)
+## 3. Publish to npm (YOU run it)
 ```bash
-npm login                # abre o fluxo de login (você faz)
-npm publish              # o prepublishOnly roda typecheck + testes + BUILD automaticamente
+npm login                # opens the login flow (you do it)
+npm publish              # prepublishOnly runs typecheck + tests + BUILD automatically
 ```
-> `prepublishOnly` = `typecheck && test && build`: se qualquer etapa falhar, a
-> publicação é abortada. O `build` gera o `dist/` (JS puro) que é o que vai no pacote.
-> Rode `npm run build` sozinho antes, se quiser inspecionar o `dist/`.
+> `prepublishOnly` = `typecheck && test && build`: if any step fails, publishing is
+> aborted. The `build` generates `dist/` (plain JS), which is what goes in the package.
+> Note on 2FA: npm requires a second factor to publish. If your 2FA is only a security
+> key (no authenticator app / TOTP), `--otp` has no code to give — either add an
+> authenticator app under Account → Two-Factor Authentication, or publish using a
+> **granular access token** (`npm config set //registry.npmjs.org/:_authToken <TOKEN>`).
 
 ## 4. GitHub / open source
-- [ ] Torne o repositório público (Settings → General → Change visibility).
-- [ ] Confira que `LICENSE` (MIT), `README.md`, `CONTRIBUTING.md` e `SECURITY.md`
-      aparecem na página do repo.
-- [ ] (Opcional) Crie uma *release*/tag `v0.1.0` para casar com a versão do npm.
+- [ ] Make the repository public (Settings → General → Change visibility).
+- [ ] Check that `LICENSE` (MIT), `README.md`, `CONTRIBUTING.md` and `SECURITY.md`
+      show up on the repo page.
+- [ ] (Optional) Create a *release*/tag to match the npm version.
 
-## 5. Como o pacote é montado (Etapa 15 — build)
-Publicamos **JS compilado** em `dist/`, não o `.ts` cru:
-- `npm run build` roda `tsc -p tsconfig.build.json`, que compila `src` + o entry MCP
-  para `dist/` (JS puro). O `rewriteRelativeImportExtensions` reescreve os imports
-  `./x.ts` → `./x.js` **só na saída** — assim o código-fonte continua rodando TS
-  nativo em dev (`npm run mcp`, etc.), e o pacote publicado roda em qualquer Node
-  moderno **sem flags**.
-- O `bin` `ai-engineering-mentor-mcp` aponta para `dist/examples/mcp.js` (com shebang),
-  então `npx ai-engineering-mentor-mcp` sobe o servidor MCP direto.
-- O campo `files` só inclui `dist/` + docs → o `.ts`, `tests/` e `data/` não vão no pacote.
+## 5. How the package is built (Step 15 — build)
+We publish **compiled JS** in `dist/`, not the raw `.ts`:
+- `npm run build` runs `tsc -p tsconfig.build.json`, which compiles `src` + the MCP
+  entry to `dist/` (plain JS). `rewriteRelativeImportExtensions` rewrites the imports
+  `./x.ts` → `./x.js` **only in the output** — so the source keeps running native TS in
+  dev (`npm run mcp`, etc.), and the published package runs on any modern Node **with
+  no flags**.
+- The `bin` `ai-engineering-mentor-mcp` points to `dist/examples/mcp.js` (with a
+  shebang), so `npx <package>` starts the MCP server directly.
+- The `files` field only includes `dist/` + docs → the `.ts`, `tests/` and `data/`
+  don't go in the package.
 
-Nota: hoje publicamos **JS sem tipos `.d.ts`** (o pacote é usado como servidor MCP via
-`bin`, não como biblioteca importável). Se um dia quiser expor tipos para consumidores
-`import`arem, dá pra reativar `declaration` no `tsconfig.build.json` — mas aí é preciso
-resolver a reescrita de extensões também nos `.d.ts` (limitação atual do TS com
-`rewriteRelativeImportExtensions`).
+Note: today we publish **JS without `.d.ts` types** (the package is used as an MCP
+server via `bin`, not as an importable library). If you ever want to expose types for
+`import`ers, you can re-enable `declaration` in `tsconfig.build.json` — but then you
+need to solve the extension rewriting in the `.d.ts` files too (a current TS
+limitation with `rewriteRelativeImportExtensions`).
 
-## Versionamento
-Use SemVer via npm: `npm version patch|minor|major` (cria commit + tag), depois
-`git push --follow-tags` e `npm publish`.
+## Versioning
+Use SemVer via npm: `npm version patch|minor|major` (creates a commit + tag), then
+`git push --follow-tags` and `npm publish`.

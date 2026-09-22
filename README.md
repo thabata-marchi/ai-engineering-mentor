@@ -81,7 +81,7 @@ Step by step, understanding every piece. **Progress (18 steps — complete):**
 - [x] **Step 7 — MongoDB**: `MongoVectorStore` (same `VectorStorePort`) — persists vectors in a real database (`VECTOR_STORE=mongo`).
 - [x] **Step 8 — Memory**: `MemoryPort` + adapters (memory/Mongo) and **chat mode** (`npm run chat`) — the mentor remembers the dialogue.
 - [x] **Step 9 — MCP server**: the mentor exposed over MCP (tool `ask`, resource + prompt) — consumable in VS Code/agents (`npm run mcp`).
-- [x] **Step 10 — Student profile**: `ProfilePort` + adapters (memory/Mongo, `study_log` collection) record what you study; 2nd MCP tool `my_progress` and `/progresso` command in chat.
+- [x] **Step 10 — Student profile**: `ProfilePort` + adapters (memory/Mongo, `study_log` collection) record what you study; 2nd MCP tool `my_progress` and `/progress` command in chat.
 - [x] **Step 11 — Agent**: autonomous agent (ReAct loop) that **consumes the MCP** — `ToolCallingLLMPort` + `AgentToolsPort` (MCP client); given a goal, it decides which tools to call (`npm run agent`).
 - [x] **Step 12 — Security + publishing**: rate limiting (sliding window), input validation, secret guard + `SECURITY.md` (threat model), and an npm-ready package.
 - [x] **Step 13 — Observability + evaluation**: `TracerPort` (local spans: retrieval/generation) + an evaluation harness (`npm run eval`) with a golden dataset and metrics — plus optional **LLM-as-judge**.
@@ -159,7 +159,7 @@ LLM_PROVIDER=gemini       GEMINI_API_KEY=...           LLM_MODEL=gemini-2.0-flas
 npm run chat        # opens a loop; type, it answers and REMEMBERS. "sair" quits.
 ```
 > With `VECTOR_STORE=mongo`, the conversation is saved in Mongo's `conversations`
-> collection. The session is `SESSION_ID` (default `default`). Type **`/progresso`**
+> collection. The session is `SESSION_ID` (default `default`). Type **`/progress`**
 > to see what you've been studying (Step 10 — student profile). With Mongo it
 > persists in the `study_log` collection.
 

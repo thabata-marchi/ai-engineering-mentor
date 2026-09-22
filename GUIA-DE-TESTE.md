@@ -1,131 +1,133 @@
-# 🧪 Guia de teste — rodar o projeto do zero
+# 🧪 Test guide — run the project from zero
 
-Roteiro linear para testar o mentor, do mais rápido/garantido (sem chave, sem
-internet) ao mais completo. Se algo falhar, veja **Solução de problemas** no fim.
+A linear walkthrough to test the mentor, from the fastest/most-guaranteed (no key, no
+internet) to the most complete. If something fails, see **Troubleshooting** at the end.
 
-> Requer **Node >= 22.6** (ideal 24). Confira: `node -v`.
+> Requires **Node >= 22.6** (ideally 24). Check: `node -v`.
 
 ---
 
-## 0. Instalar
+## 0. Install
 ```bash
 cd ai-engineering-mentor
 npm install
 ```
 
-## 1. Testes automatizados (prova mais rápida — NÃO precisa de chave)
+## 1. Automated tests (fastest proof — NO key needed)
 ```bash
-npm test          # 80 testes → 79 passam + 1 pulado (Mongo, opt-in)
-npm run typecheck # confere os tipos (tsc --noEmit)
+npm test          # ~89 tests → all pass + 1 skipped (Mongo, opt-in)
+npm run typecheck # checks the types (tsc --noEmit)
 ```
-Usa dublês (fakes) — não gasta cota nem usa rede. Se os dois passam, o núcleo está saudável.
+Uses doubles (fakes) — no quota, no network. If both pass, the core is healthy.
 
-## 2. Demo sem configurar nada (vê o fluxo do RAG)
+## 2. Demo, no config (see the RAG flow)
 ```bash
 npm run demo
 ```
-Embedder e LLM falsos — mostra o pipeline (ingestão → busca → resposta com fontes)
-sem "pensar" de verdade.
+Fake embedder and LLM — shows the pipeline (ingestion → search → answer with sources)
+without "thinking" for real.
 
-## 3. Rodar de verdade (embedder local + LLM ao vivo via OpenRouter)
-Precisa de uma chave (grátis) do OpenRouter. **Uma vez:**
+## 3. Run for real (local embedder + live LLM)
+Needs an LLM key. Pick your provider and set it in `.env`. **Once:**
 ```bash
 cp .env.example .env
-# 1) crie a chave em https://openrouter.ai/keys (login com Google/GitHub → Create Key)
-# 2) edite o .env e cole em OPENROUTER_API_KEY=sk-or-...  (sem aspas, sem espaço no =)
+# set LLM_PROVIDER (openrouter | openai | anthropic | gemini) and the matching key,
+# e.g. OPENROUTER_API_KEY=sk-or-...  (no quotes, no space around the =)
 ```
-Depois:
+Then:
 ```bash
-npm run ask -- "o que é o single responsibility principle?"
+npm run ask -- "what is the single responsibility principle?"
 ```
-> A 1ª execução baixa o modelo de embeddings (~alguns MB) e cacheia; depois fica rápido.
-> O `.env` é ignorado pelo Git — sua chave nunca vai pro repositório.
+> The first run downloads the embedding model (~a few MB) and caches it; after that
+> it's fast. `.env` is Git-ignored — your key never goes to the repository.
+> Answer language: `MENTOR_LANG=en` (default) or `pt`.
 
-## 4. Conversa com memória (+ perfil de estudo)
+## 4. Chat with memory (+ study profile)
 ```bash
 npm run chat
 ```
-Ele **lembra** do diálogo. Digite `/progresso` pra ver o que estudou; `sair` encerra.
+It **remembers** the dialogue. Type `/progress` to see what you studied; `exit` quits.
 
-## 5. Servidor MCP
+## 5. MCP server
 ```bash
-npm run mcp        # sobe o servidor STDIO e espera um cliente
+npm run mcp        # starts the STDIO server and waits for a client
 ```
-Inspecionar visualmente (em outro terminal):
+Inspect it visually (in another terminal):
 ```bash
 npx @modelcontextprotocol/inspector node --dns-result-order=ipv4first \
   --env-file-if-exists=.env --experimental-strip-types examples/mcp.ts
 ```
-Você verá as tools `perguntar` e `meu_progresso`, o resource e o prompt.
+You'll see the `ask` and `my_progress` tools, the resource and the prompt.
 
-## 6. Agente autônomo
+## 6. Autonomous agent
 ```bash
-npm run agent -- "me ajude a entender o Single Responsibility Principle"
+npm run agent -- "help me understand the Single Responsibility Principle"
 ```
-Ele decide sozinho quais tools chamar e mostra o passo a passo.
-> Precisa de um modelo com **tool-calling** — fixe um em `OPENROUTER_MODEL` (selo
-> "Tools" em https://openrouter.ai/models). Sem isso, responde direto (0 passos).
+It decides on its own which tools to call and shows the step-by-step.
+> Needs a model with **tool-calling** — it uses the `LLM_PROVIDER` provider; pick a
+> tool-capable model in `LLM_MODEL` (on OpenRouter, the "Tools" badge at
+> https://openrouter.ai/models). Without it, it answers directly (0 steps).
 
-## 7. Avaliação da qualidade
+## 7. Quality evaluation
 ```bash
-npm run eval                 # placar determinístico (source-hit, citação, menção)
-EVAL_JUDGE=1 npm run eval     # + LLM-as-judge (mede fidelidade; gasta cota)
-EVAL_TRACE=1 npm run eval     # + trace ao vivo de cada passo
+npm run eval                 # deterministic scorecard (source-hit, citation, mention)
+EVAL_JUDGE=1 npm run eval     # + LLM-as-judge (measures faithfulness; uses quota)
+EVAL_RUNS=3 npm run eval      # runs each case 3x and averages (reduces noise)
+EVAL_TRACE=1 npm run eval     # + live trace of each step
 ```
 
-## 8. (Opcional) MongoDB como banco
+## 8. (Optional) MongoDB as the store
 ```bash
-open -a Docker            # abra o Docker Desktop (espere estabilizar)
-docker compose up -d      # sobe Mongo + Mongo Express
-VECTOR_STORE=mongo npm run ask -- "o que é extrair função?"
+open -a Docker            # open Docker Desktop (wait for it to settle)
+docker compose up -d      # starts Mongo + Mongo Express
+VECTOR_STORE=mongo npm run ask -- "what is extract function?"
 ```
-Veja os dados em http://localhost:8081. Desligar: `docker compose down`.
+See the data at http://localhost:8081. Stop it with: `docker compose down`.
 
-## 9. (Opcional) Sua própria base (PDF/.md/.txt)
+## 9. (Optional) Your own base (PDF/.md/.txt)
 ```bash
-mkdir -p data && cp "meu-livro.pdf" data/
+mkdir -p data && cp "my-book.pdf" data/
 echo 'DOCS_DIR=./data' >> .env
-npm run ask -- "sua pergunta sobre o material"
+npm run ask -- "your question about the material"
 ```
 
 ---
 
-## ✅ Teste de fumaça (o mínimo pra provar que funciona)
-Sem chave/internet: **Passo 1** (`npm test`) + **Passo 2** (`npm run demo`).
-Pra ver "pensando de verdade": **Passo 3** (`npm run ask`).
+## ✅ Smoke test (the minimum to prove it works)
+No key/internet: **Step 1** (`npm test`) + **Step 2** (`npm run demo`).
+To see it "really thinking": **Step 3** (`npm run ask`).
 
 ---
 
-## 🛠️ Solução de problemas
+## 🛠️ Troubleshooting
 
-**`OPENROUTER_API_KEY ausente ou parece um placeholder`**
-É o *guard* de segredo funcionando. Sua chave não está no `.env` ou ainda é o
-placeholder. Rode `cp .env.example .env` e cole a chave real em `OPENROUTER_API_KEY`
-(a chave inteira, sem `cole-sua-chave`, sem aspas). Veja o Passo 3.
+**`<KEY> is missing or looks like a placeholder`**
+It's the secret *guard* working. Your key isn't in `.env`, or it's still the
+placeholder. Run `cp .env.example .env` and paste the real key in the provider's env
+var (the whole key, without `cole-sua-chave`, no quotes). See Step 3.
 
 **404 `This model is unavailable for free`**
-Um modelo `:free` rotacionou para pago. O app **se auto-cura** caindo no
-`openrouter/free`. Se você fixou `OPENROUTER_MODEL`, comente essa linha no `.env`
-ou troque por outro modelo.
+A `:free` model rotated to paid. The app **auto-heals** by falling back to
+`openrouter/free`. If you pinned `OPENROUTER_MODEL`/`LLM_MODEL`, comment that line in
+`.env` or switch to another model.
 
 **Timeout / `This operation was aborted`**
-Modelo de raciocínio lento + fila do tier grátis. Aumente `LLM_TIMEOUT_MS` no `.env`
-(padrão 120000) ou use `OPENROUTER_MODEL=openrouter/free`.
+A slow reasoning model + free-tier queue. Increase `LLM_TIMEOUT_MS` in `.env`
+(default 120000) or use `LLM_MODEL=openrouter/free`.
 
 **`fetch failed` / `ENOTFOUND`**
-Rede intermitente / IPv6. Os scripts já usam `--dns-result-order=ipv4first`; tente de novo.
+Intermittent network / IPv6. The scripts already use `--dns-result-order=ipv4first`; try again.
 
-**`Limite de chamadas excedido` (rate limit)**
-Proteção de cota (Etapa 12). Espere alguns segundos, ou ajuste `RATE_LIMIT_MAX` /
-`RATE_LIMIT_WINDOW_MS` no `.env`.
+**`Rate limit exceeded`**
+Quota protection (Step 12). Wait a few seconds, or tune `RATE_LIMIT_MAX` /
+`RATE_LIMIT_WINDOW_MS` in `.env`.
 
-**Agente responde sem usar tools (0 passos)**
-O modelo escolhido não suporta tool-calling. Fixe um modelo com selo "Tools" em
-`OPENROUTER_MODEL` (veja o Passo 6).
+**Agent answers without using tools (0 steps)**
+The chosen model doesn't support tool-calling. Pick a tool-capable model in
+`LLM_MODEL` (see Step 6).
 
 **Docker: `Cannot connect to the Docker daemon`**
-O Docker Desktop não está rodando. `open -a Docker`, espere a baleia estabilizar e
-tente de novo.
+Docker Desktop isn't running. `open -a Docker`, wait for it to settle and try again.
 
-**Crash `mutex lock failed` ao encerrar**
-Cosmético (teardown do onnxruntime, acontece *depois* da saída). Pode ignorar.
+**`mutex lock failed` crash on exit**
+Cosmetic (onnxruntime teardown, happens *after* the output). You can ignore it.
