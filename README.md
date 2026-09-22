@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/thabata-marchi/ai-engineering-mentor/actions/workflows/ci.yml/badge.svg)](https://github.com/thabata-marchi/ai-engineering-mentor/actions/workflows/ci.yml)
 ![Node](https://img.shields.io/badge/node-%3E%3D22.6-3c873a)
-![npm](https://img.shields.io/badge/npm-%40thabata--marchi%2Fai--engineering--mentor-cb3837)
+[![npm](https://img.shields.io/npm/v/@thabata-marchi/ai-engineering-mentor?logo=npm&color=cb3837)](https://www.npmjs.com/package/@thabata-marchi/ai-engineering-mentor)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Framework](https://img.shields.io/badge/framework-none%20(from%20scratch)-orange)
 
