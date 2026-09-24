@@ -3,7 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "AI programming mentor (Socratic RAG + MCP + agent) — a study project in TypeScript, hexagonal architecture, multi-provider (OpenRouter/OpenAI/Anthropic/Gemini)",
   "type": "module",
   "main": "./dist/src/index.js",
