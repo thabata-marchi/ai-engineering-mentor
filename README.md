@@ -30,7 +30,9 @@ all on **hexagonal architecture** with **tests from day one**.
 - **Study profile + difficulty detection** — the mentor tracks what you study and
   **infers where you may be struggling** (topics you revisit, questions you re-ask,
   points where you flagged confusion) — a pure, deterministic heuristic, not a diagnosis.
-- **Real persistence** — MongoDB as vector store, conversation memory and study profile.
+  The profile is **persisted to disk by default**, so it remembers across sessions with no setup.
+- **Real persistence** — study profile persisted to a JSON file out of the box, and
+  optional MongoDB as vector store, conversation memory and profile.
 - **Multi-provider** — pick your LLM provider (OpenRouter, OpenAI, Anthropic, Gemini) with your own key.
 - **Engineering rigor** — rate limiting, validation, observability (tracing),
   **evaluation** (golden dataset + LLM-as-judge) and **prompt-injection guardrails**
@@ -71,7 +73,7 @@ indexes your `DOCS_DIR` (PDFs/`.md`/`.txt`). Then the `ask` and `my_progress` to
 show up in your assistant, answering grounded in **your** material with sources.
 
 ## How it was built
-Step by step, understanding every piece. **Progress (19 steps — complete):**
+Step by step, understanding every piece. **Progress (20 steps — complete):**
 - [x] **Step 1 — Foundation**: hexagonal skeleton (`core` = models + ports) + tests.
 - [x] **Step 2 — Ingestion**: text/Markdown parser + chunking (sliding window).
 - [x] **Step 2b — PDF**: `PdfParser` (unpdf) + `FileParser` (extension dispatcher: .pdf/.md/.txt).
@@ -94,6 +96,7 @@ Step by step, understanding every piece. **Progress (19 steps — complete):**
 - [x] **Step 17 — Multi-provider tool-calling**: the **agent** also respects `LLM_PROVIDER` — `OpenAICompatibleChatLLM` and `AnthropicChatLLM` behind `ToolCallingLLMPort`, via `createChatLLM`.
 - [x] **Step 18 — Language option**: the mentor answers in **English by default**; `MENTOR_LANG=pt` switches to Portuguese (system prompts built per `[language][mode]`).
 - [x] **Step 19 — Difficulty detection**: `core/difficulty.ts` — a pure, deterministic heuristic over the study profile that infers **areas that may need review** from four signals (revisited sources, recurring topics, re-asked questions via lexical similarity, and explicit confusion markers in PT/EN). Surfaced in the `my_progress` tool and the `/progress` chat command. It flags *patterns*, not a diagnosis (semantic matching via the embedder is a natural next step).
+- [x] **Step 20 — Persistent profile (no Docker)**: `FileProfile` — a `ProfilePort` adapter that saves the study log to a JSON file (`data/profile.json`, Git-ignored), reusing the same pure `summarize()`. It's now the **default** when Mongo is off, so the mentor **remembers what you studied and where you got stuck across sessions** with zero infrastructure. `PROFILE_STORE=memory` opts back into a throwaway in-RAM profile; `VECTOR_STORE=mongo` still routes to `MongoProfile`.
 
 ## Structure
 ```
@@ -165,8 +168,10 @@ npm run chat        # opens a loop; type, it answers and REMEMBERS. "sair" quits
 > With `VECTOR_STORE=mongo`, the conversation is saved in Mongo's `conversations`
 > collection. The session is `SESSION_ID` (default `default`). Type **`/progress`**
 > to see what you've been studying (Step 10 — student profile) plus **areas that may
-> need review** (Step 19 — difficulty detection). With Mongo it persists in the
-> `study_log` collection.
+> need review** (Step 19 — difficulty detection). The profile **persists across
+> sessions by default** in `data/profile.json` (Step 20); with `VECTOR_STORE=mongo`
+> it goes to the `study_log` collection instead, and `PROFILE_STORE=memory` makes it
+> throwaway.
 
 **Use as an MCP server, from a clone** (Step 9):
 ```bash
