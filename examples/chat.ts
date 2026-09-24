@@ -16,6 +16,7 @@ import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 
 import { AnswerQuestion } from '../src/application/answerQuestion.ts';
+import { describeDifficulty } from '../src/core/difficulty.ts';
 import { setupMentor } from './setup.ts';
 
 async function main() {
@@ -57,11 +58,15 @@ async function main() {
         } else {
           const sources = summary.bySource.map((f) => `   - ${f.source}: ${f.count}x`).join('\n');
           const recent = summary.recent.map((q, i) => `   ${i + 1}. ${q}`).join('\n');
-          console.log(
+          let out =
             `\n📈 Progress (${summary.total} question(s))\n` +
-              `Most consulted sources:\n${sources}\n` +
-              `Recent questions:\n${recent}\n`,
-          );
+            `Most consulted sources:\n${sources}\n` +
+            `Recent questions:\n${recent}\n`;
+          if (summary.difficulties.length > 0) {
+            const areas = summary.difficulties.map((d) => `   - ${describeDifficulty(d)}`).join('\n');
+            out += `🧭 Areas that may need review:\n${areas}\n`;
+          }
+          console.log(out);
         }
         continue;
       }

@@ -34,7 +34,7 @@ test('summarize: conta fontes, ordena por frequência e traz as últimas pergunt
 
 test('summarize: perfil vazio devolve total 0 e listas vazias', () => {
   const r = summarize([]);
-  assert.deepEqual(r, { total: 0, bySource: [], recent: [] });
+  assert.deepEqual(r, { total: 0, bySource: [], recent: [], difficulties: [] });
 });
 
 test('InMemoryProfile: record + summary por aluno (isolado)', async () => {
@@ -47,7 +47,12 @@ test('InMemoryProfile: record + summary por aluno (isolado)', async () => {
   assert.deepEqual(r.bySource[0], { source: 'clean.md', count: 2 });
 
   // Outro aluno não vê os estudos do primeiro.
-  assert.deepEqual(await profile.summary('aluno-2'), { total: 0, bySource: [], recent: [] });
+  assert.deepEqual(await profile.summary('aluno-2'), {
+    total: 0,
+    bySource: [],
+    recent: [],
+    difficulties: [],
+  });
 });
 
 /** Monta um mentor com base indexada + perfil, pronto para responder. */

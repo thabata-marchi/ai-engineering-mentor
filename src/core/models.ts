@@ -90,11 +90,26 @@ export interface StudyRecord {
   readonly at: string; // ISO
 }
 
+/** Why a topic was flagged as a possible difficulty (Step 19 — for transparency). */
+export type DifficultyReason =
+  | 'revisited-source' // a source consulted many times
+  | 'recurring-topic' // a keyword that shows up across many questions
+  | 'repeated-question' // questions very similar to each other (re-asked)
+  | 'confusion'; // a question with an explicit "I didn't get it" marker
+
+/** One area that MAY need review, plus the evidence behind it (heuristic, not a verdict). */
+export interface DifficultyArea {
+  readonly topic: string; // the source, keyword or question that triggered the signal
+  readonly reason: DifficultyReason;
+  readonly occurrences: number; // strength of the signal (higher = stronger)
+}
+
 /** A summary of the student's learning profile (what they've been studying). */
 export interface ProfileSummary {
   readonly total: number; // how many questions they asked
   readonly bySource: { source: string; count: number }[]; // most consulted documents
   readonly recent: string[]; // latest questions
+  readonly difficulties: DifficultyArea[]; // areas that MAY need review (Step 19, heuristic)
 }
 
 // ============================================================================

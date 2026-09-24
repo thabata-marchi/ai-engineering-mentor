@@ -24,6 +24,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
 import type { AnswerQuestion } from '../application/answerQuestion.ts';
+import { describeDifficulty } from '../core/difficulty.ts';
 import type { ProfilePort } from '../core/ports.ts';
 import { MAX_QUESTION_LEN } from '../core/validation.ts';
 
@@ -90,11 +91,16 @@ export function createMentorMcpServer(useCase: AnswerQuestion, profile?: Profile
           .map((f) => `- ${f.source}: ${f.count} time(s)`)
           .join('\n');
         const recent = summary.recent.map((q, i) => `${i + 1}. ${q}`).join('\n');
-        const text =
+        let text =
           `📈 Student progress\n\n` +
           `Questions asked: ${summary.total}\n\n` +
           `Most consulted sources:\n${sources}\n\n` +
           `Recent questions:\n${recent}`;
+        // Step 19: areas that MAY need review (heuristic — patterns, not a diagnosis).
+        if (summary.difficulties.length > 0) {
+          const areas = summary.difficulties.map((d) => `- ${describeDifficulty(d)}`).join('\n');
+          text += `\n\n🧭 Areas that may need review:\n${areas}`;
+        }
         return { content: [{ type: 'text', text }] };
       },
     );

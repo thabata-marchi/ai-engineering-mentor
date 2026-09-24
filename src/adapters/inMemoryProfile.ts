@@ -13,6 +13,7 @@
 //  That's Dependency Inversion in practice.
 // ============================================================================
 
+import { analyzeDifficulty } from '../core/difficulty.ts';
 import type { ProfileSummary, StudyRecord } from '../core/models.ts';
 import type { ProfilePort } from '../core/ports.ts';
 
@@ -57,5 +58,8 @@ export function summarize(records: readonly StudyRecord[]): ProfileSummary {
     .reverse() // from newest to oldest
     .map((r) => r.question);
 
-  return { total: records.length, bySource, recent };
+  // Step 19: infer areas that MAY need review from the same records (pure heuristic).
+  const { areas: difficulties } = analyzeDifficulty(records);
+
+  return { total: records.length, bySource, recent, difficulties };
 }
