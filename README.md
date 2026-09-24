@@ -27,11 +27,14 @@ all on **hexagonal architecture** with **tests from day one**.
 - **MCP (Model Context Protocol)** — the mentor becomes a tool for AI (tools
   `ask`/`my_progress`, a resource and a prompt).
 - **Autonomous agent** — a ReAct loop with *tool-calling* that **consumes its own MCP**.
+- **Study profile + difficulty detection** — the mentor tracks what you study and
+  **infers where you may be struggling** (topics you revisit, questions you re-ask,
+  points where you flagged confusion) — a pure, deterministic heuristic, not a diagnosis.
 - **Real persistence** — MongoDB as vector store, conversation memory and study profile.
 - **Multi-provider** — pick your LLM provider (OpenRouter, OpenAI, Anthropic, Gemini) with your own key.
 - **Engineering rigor** — rate limiting, validation, observability (tracing),
   **evaluation** (golden dataset + LLM-as-judge) and **prompt-injection guardrails**
-  (defense in depth + measured resistance). **~90 tests** (node:test).
+  (defense in depth + measured resistance). **~99 tests** (node:test).
 
 > ⚠️ **Study / portfolio project.** The goal is *learning by building*. The
 > **knowledge base is not included**: books/PDFs are copyrighted, so you put your
@@ -68,7 +71,7 @@ indexes your `DOCS_DIR` (PDFs/`.md`/`.txt`). Then the `ask` and `my_progress` to
 show up in your assistant, answering grounded in **your** material with sources.
 
 ## How it was built
-Step by step, understanding every piece. **Progress (18 steps — complete):**
+Step by step, understanding every piece. **Progress (19 steps — complete):**
 - [x] **Step 1 — Foundation**: hexagonal skeleton (`core` = models + ports) + tests.
 - [x] **Step 2 — Ingestion**: text/Markdown parser + chunking (sliding window).
 - [x] **Step 2b — PDF**: `PdfParser` (unpdf) + `FileParser` (extension dispatcher: .pdf/.md/.txt).
@@ -90,6 +93,7 @@ Step by step, understanding every piece. **Progress (18 steps — complete):**
 - [x] **Step 16 — Multi-provider**: pick the LLM provider (`LLM_PROVIDER=openrouter|openai|anthropic|gemini`) and use **your** key — `OpenAICompatibleLLM` (OpenAI/Gemini) and `AnthropicLLM` behind the same `LLMPort`, chosen by a factory.
 - [x] **Step 17 — Multi-provider tool-calling**: the **agent** also respects `LLM_PROVIDER` — `OpenAICompatibleChatLLM` and `AnthropicChatLLM` behind `ToolCallingLLMPort`, via `createChatLLM`.
 - [x] **Step 18 — Language option**: the mentor answers in **English by default**; `MENTOR_LANG=pt` switches to Portuguese (system prompts built per `[language][mode]`).
+- [x] **Step 19 — Difficulty detection**: `core/difficulty.ts` — a pure, deterministic heuristic over the study profile that infers **areas that may need review** from four signals (revisited sources, recurring topics, re-asked questions via lexical similarity, and explicit confusion markers in PT/EN). Surfaced in the `my_progress` tool and the `/progress` chat command. It flags *patterns*, not a diagnosis (semantic matching via the embedder is a natural next step).
 
 ## Structure
 ```
@@ -160,8 +164,9 @@ npm run chat        # opens a loop; type, it answers and REMEMBERS. "sair" quits
 ```
 > With `VECTOR_STORE=mongo`, the conversation is saved in Mongo's `conversations`
 > collection. The session is `SESSION_ID` (default `default`). Type **`/progress`**
-> to see what you've been studying (Step 10 — student profile). With Mongo it
-> persists in the `study_log` collection.
+> to see what you've been studying (Step 10 — student profile) plus **areas that may
+> need review** (Step 19 — difficulty detection). With Mongo it persists in the
+> `study_log` collection.
 
 **Use as an MCP server, from a clone** (Step 9):
 ```bash
