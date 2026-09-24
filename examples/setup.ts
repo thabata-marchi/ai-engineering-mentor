@@ -18,6 +18,7 @@ import { MongoVectorStore } from '../src/adapters/mongoVectorStore.ts';
 import { InMemoryMemory } from '../src/adapters/inMemoryMemory.ts';
 import { MongoMemory } from '../src/adapters/mongoMemory.ts';
 import { InMemoryProfile } from '../src/adapters/inMemoryProfile.ts';
+import { FileProfile } from '../src/adapters/fileProfile.ts';
 import { MongoProfile } from '../src/adapters/mongoProfile.ts';
 import { LocalEmbedder, type EmbedderDtype } from '../src/adapters/localEmbedder.ts';
 import { createLLMFromEnv } from '../src/adapters/llmFactory.ts';
@@ -28,6 +29,11 @@ import type { LLMPort, MemoryPort, ProfilePort, VectorStorePort } from '../src/c
 import type { MentorMode, MentorLang } from '../src/application/answerQuestion.ts';
 
 const CACHE_PATH = resolve(process.cwd(), 'data/vectorstore/index.json');
+// Where the persistent study profile lives (Step 20). Same `data/` folder as the
+// index cache (Git-ignored). Override with PROFILE_PATH.
+const PROFILE_PATH = process.env.PROFILE_PATH
+  ? resolve(process.cwd(), process.env.PROFILE_PATH)
+  : resolve(process.cwd(), 'data/profile.json');
 const CHUNK_CONFIG = { chunkSizeWords: 200, overlapWords: 30 };
 const BATCH_SIZE = 32;
 const MAX_CHUNKS = process.env.MAX_CHUNKS ? Number(process.env.MAX_CHUNKS) : Infinity;
@@ -88,9 +94,14 @@ export async function setupMentor(): Promise<Mentor> {
   const memory: MemoryPort = usingMongo
     ? new MongoMemory({ url: mongoUrl })
     : new InMemoryMemory();
+  // Profile persistence (Step 20): Mongo when enabled; otherwise a JSON file on disk
+  // by DEFAULT, so the mentor remembers where you got stuck ACROSS SESSIONS with no
+  // Docker. Set PROFILE_STORE=memory for a throwaway, in-RAM profile.
   const profile: ProfilePort = usingMongo
     ? new MongoProfile({ url: mongoUrl })
-    : new InMemoryProfile();
+    : process.env.PROFILE_STORE === 'memory'
+      ? new InMemoryProfile()
+      : new FileProfile(PROFILE_PATH);
 
   const deps: IngestDeps = { parser, chunker, embedder, files };
   if (usingMongo) {
