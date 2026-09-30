@@ -62,6 +62,11 @@ export type MentorMode = 'guided' | 'direct';
 /** The answer language (Step 18). */
 export type MentorLang = 'en' | 'pt';
 
+/** Per-call options for `execute` (Step 21). */
+export interface ExecuteOptions {
+  readonly mode?: MentorMode; // overrides the default mode for this call only
+}
+
 // The "I couldn't find it" sentence, per language. Used verbatim by the prompts.
 const NOT_FOUND: Record<MentorLang, string> = {
   en: 'I could not find this in the knowledge base.',
@@ -136,7 +141,7 @@ export class AnswerQuestion {
   private readonly topK: number;
   private readonly historyLimit: number;
   private readonly mode: MentorMode;
-  private readonly systemPrompt: string;
+  private readonly lang: MentorLang;
   private readonly maxQuestionLen?: number;
   private readonly tracer: TracerPort;
 
@@ -145,7 +150,7 @@ export class AnswerQuestion {
     this.topK = deps.topK ?? 4;
     this.historyLimit = deps.historyLimit ?? 6;
     this.mode = deps.mode ?? 'guided'; // default: Socratic guided
-    this.systemPrompt = SYSTEM_PROMPTS[deps.lang ?? 'en'][this.mode]; // default language: English
+    this.lang = deps.lang ?? 'en'; // default language: English
     this.maxQuestionLen = deps.maxQuestionLen;
     this.tracer = deps.tracer ?? new NoopTracer(); // no tracer → no observability (zero cost)
   }
@@ -154,8 +159,15 @@ export class AnswerQuestion {
    * Answers `question`. If `sessionId` is provided AND there is memory, the mentor
    * REMEMBERS the conversation: it injects the history into the prompt and records
    * the turns. Without it, it works as a single isolated question.
+   *
+   * `options.mode` overrides the default mode for THIS call only (Step 21): e.g. a
+   * beginner asks for a `direct` explanation of a new term, then goes back to
+   * `guided` to practice — without restarting the server.
    */
-  async execute(question: string, sessionId?: string): Promise<Answer> {
+  async execute(question: string, sessionId?: string, options?: ExecuteOptions): Promise<Answer> {
+    const mode = options?.mode ?? this.mode;
+    const systemPrompt = SYSTEM_PROMPTS[this.lang][mode];
+
     // 0. VALIDATION — reject an empty/huge question early (Step 12) and normalize.
     question = validateQuestion(question, this.maxQuestionLen);
 
@@ -181,8 +193,8 @@ export class AnswerQuestion {
     const userPrompt = buildUserPrompt(question, context, history);
 
     // 3. GENERATION — the LLM produces the answer following the chosen mode's rules.
-    const spanGen = this.tracer.startSpan('generation', { mode: this.mode });
-    const text = await this.deps.llm.generate(this.systemPrompt, userPrompt);
+    const spanGen = this.tracer.startSpan('generation', { mode });
+    const text = await this.deps.llm.generate(systemPrompt, userPrompt);
     spanGen.setAttribute('respLen', text.length);
     spanGen.end();
 

@@ -38,7 +38,8 @@ export function createMentorMcpServer(useCase: AnswerQuestion, profile?: Profile
       title: 'Ask the mentor',
       description:
         'Asks the programming mentor a question. It answers grounded in the ' +
-        'knowledge base (RAG), in a Socratic way, and cites the sources it used.',
+        'knowledge base (RAG), in a Socratic way by default (or directly, with ' +
+        '`mode: "direct"`), and cites the sources it used.',
       inputSchema: {
         // Edge validation (Step 12): reject empty and cap the length — zod blocks
         // it before it even reaches the use case, with a clear message.
@@ -52,10 +53,19 @@ export function createMentorMcpServer(useCase: AnswerQuestion, profile?: Profile
           .max(200)
           .optional()
           .describe('Conversation id, so the mentor remembers the turns. Optional.'),
+        // Step 21: pick the stance per call, without restarting the server.
+        mode: z
+          .enum(['guided', 'direct'])
+          .optional()
+          .describe(
+            'guided = Socratic (a question + a hint); direct = full explanation. ' +
+              'Use direct when the student is new to a term or asks for the answer. ' +
+              'Defaults to the server MODE.',
+          ),
       },
     },
-    async ({ question, session }) => {
-      const answer = await useCase.execute(question, session);
+    async ({ question, session, mode }) => {
+      const answer = await useCase.execute(question, session, { mode });
       const sources = answer.sources
         .map((s, i) => `[${i + 1}] ${s.source} (chunk #${s.position})`)
         .join('\n');
