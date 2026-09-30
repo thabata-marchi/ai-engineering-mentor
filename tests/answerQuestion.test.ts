@@ -93,6 +93,30 @@ test('modo direto usa o prompt de resposta pronta', async () => {
   assert.doesNotMatch(llm.lastSystemPrompt, /Do NOT hand over the full answer/i);
 });
 
+test('mode por chamada sobrepõe o padrão só naquela pergunta (Etapa 21)', async () => {
+  const { embedder, store } = await setup();
+  const llm = new FakeLLM();
+
+  const useCase = new AnswerQuestion({ embedder, store, llm, topK: 1 }); // padrão = guided
+  await useCase.execute('o que é repository?', undefined, { mode: 'direct' });
+  assert.doesNotMatch(llm.lastSystemPrompt, /Do NOT hand over the full answer/i);
+
+  // A chamada seguinte, sem mode, volta ao padrão do servidor.
+  await useCase.execute('o que é repository?');
+  assert.match(llm.lastSystemPrompt, /Do NOT hand over the full answer/i);
+});
+
+test('mode por chamada respeita o idioma configurado', async () => {
+  const { embedder, store } = await setup();
+  const llm = new FakeLLM();
+
+  const useCase = new AnswerQuestion({ embedder, store, llm, topK: 1, mode: 'direct', lang: 'pt' });
+  await useCase.execute('o que é repository?', undefined, { mode: 'guided' });
+
+  // Guiado + português: a regra socrática vem em PT.
+  assert.match(llm.lastSystemPrompt, /NÃO entregue a resposta pronta/);
+});
+
 test('lang: pt faz o system prompt pedir resposta em português', async () => {
   const { embedder, store } = await setup();
   const llm = new FakeLLM();

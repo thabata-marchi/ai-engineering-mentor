@@ -61,6 +61,30 @@ test('MCP: cliente lista a tool "perguntar" e recebe a resposta do mentor', asyn
   }
 });
 
+test('MCP: o parâmetro "mode" do ask troca o modo só naquela chamada (Etapa 21)', async () => {
+  const llm = new FakeLLM();
+  const server = createMentorMcpServer(await fakeUseCase(llm));
+  const client = await connectPair(server);
+
+  try {
+    await client.callTool({ name: 'ask', arguments: { question: 'o que é SRP?', mode: 'direct' } });
+    assert.doesNotMatch(llm.lastSystemPrompt, /Do NOT hand over the full answer/i);
+
+    await client.callTool({ name: 'ask', arguments: { question: 'o que é SRP?' } });
+    assert.match(llm.lastSystemPrompt, /Do NOT hand over the full answer/i); // padrão: guiado
+
+    // Valor fora do enum é barrado na borda pelo zod, antes de chegar ao mentor.
+    const invalid = await client.callTool({
+      name: 'ask',
+      arguments: { question: 'o que é SRP?', mode: 'lecture' },
+    });
+    assert.equal(invalid.isError, true);
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
+
 test('MCP: expõe o resource da base e o prompt de estudo guiado', async () => {
   const server = createMentorMcpServer(await fakeUseCase(new FakeLLM()));
   const client = await connectPair(server);
