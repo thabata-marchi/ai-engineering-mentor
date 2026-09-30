@@ -71,9 +71,12 @@ and bring your own key + docs:
 The client starts the server; on first run it downloads the embedding model and
 indexes your `DOCS_DIR` (PDFs/`.md`/`.txt`). Then the `ask` and `my_progress` tools
 show up in your assistant, answering grounded in **your** material with sources.
+The index cache and your study profile are saved in `~/.ai-engineering-mentor` when
+the client starts the server from `/` (e.g. Claude Desktop), or in `DATA_DIR` if you set it.
+`ask` takes an optional `mode` (`guided`|`direct`) to switch stance per question.
 
 ## How it was built
-Step by step, understanding every piece. **Progress (21 steps — complete):**
+Step by step, understanding every piece. **Progress (22 steps — complete):**
 - [x] **Step 1 — Foundation**: hexagonal skeleton (`core` = models + ports) + tests.
 - [x] **Step 2 — Ingestion**: text/Markdown parser + chunking (sliding window).
 - [x] **Step 2b — PDF**: `PdfParser` (unpdf) + `FileParser` (extension dispatcher: .pdf/.md/.txt).
@@ -98,6 +101,7 @@ Step by step, understanding every piece. **Progress (21 steps — complete):**
 - [x] **Step 19 — Difficulty detection**: `core/difficulty.ts` — a pure, deterministic heuristic over the study profile that infers **areas that may need review** from four signals (revisited sources, recurring topics, re-asked questions via lexical similarity, and explicit confusion markers in PT/EN). Surfaced in the `my_progress` tool and the `/progress` chat command. It flags *patterns*, not a diagnosis (semantic matching via the embedder is a natural next step).
 - [x] **Step 20 — Persistent profile (no Docker)**: `FileProfile` — a `ProfilePort` adapter that saves the study log to a JSON file (`data/profile.json`, Git-ignored), reusing the same pure `summarize()`. It's now the **default** when Mongo is off, so the mentor **remembers what you studied and where you got stuck across sessions** with zero infrastructure. `PROFILE_STORE=memory` opts back into a throwaway in-RAM profile; `VECTOR_STORE=mongo` still routes to `MongoProfile`.
 - [x] **Step 21 — Mode per call**: the `ask` tool takes an optional `mode` (`guided`|`direct`) that overrides `MODE` for that call only — a beginner can get a `direct` explanation of a new term and go back to Socratic practice, without restarting the server. `AnswerQuestion.execute(question, session, { mode })` picks the system prompt per call.
+- [x] **Step 22 — Data dir that works in any MCP client**: `core/dataDir.ts` picks where the index cache and profile live — `DATA_DIR` if set, `~/.ai-engineering-mentor` when the client starts the server with cwd = `/` (Claude Desktop on macOS, where `<cwd>/data` is read-only and saving the index crashed the server), otherwise `<cwd>/data` as before.
 
 ## Structure
 ```

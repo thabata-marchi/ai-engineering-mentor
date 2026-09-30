@@ -9,8 +9,10 @@
 // ============================================================================
 
 import { readdir, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 
+import { resolveDataDir } from '../src/core/dataDir.ts';
 import { FileParser } from '../src/adapters/fileParser.ts';
 import { SlidingWindowChunker } from '../src/core/chunker.ts';
 import { InMemoryVectorStore } from '../src/adapters/inMemoryVectorStore.ts';
@@ -28,12 +30,19 @@ import { loadIndex, saveIndex } from '../src/adapters/indexCache.ts';
 import type { LLMPort, MemoryPort, ProfilePort, VectorStorePort } from '../src/core/ports.ts';
 import type { MentorMode, MentorLang } from '../src/application/answerQuestion.ts';
 
-const CACHE_PATH = resolve(process.cwd(), 'data/vectorstore/index.json');
-// Where the persistent study profile lives (Step 20). Same `data/` folder as the
+// Where the index cache and the profile live (Step 22): DATA_DIR, or <cwd>/data,
+// or ~/.ai-engineering-mentor when the MCP client starts us with cwd = "/".
+const DATA_DIR = resolveDataDir({
+  dataDir: process.env.DATA_DIR,
+  cwd: process.cwd(),
+  home: homedir(),
+});
+const CACHE_PATH = join(DATA_DIR, 'vectorstore/index.json');
+// Where the persistent study profile lives (Step 20). Same data folder as the
 // index cache (Git-ignored). Override with PROFILE_PATH.
 const PROFILE_PATH = process.env.PROFILE_PATH
   ? resolve(process.cwd(), process.env.PROFILE_PATH)
-  : resolve(process.cwd(), 'data/profile.json');
+  : join(DATA_DIR, 'profile.json');
 const CHUNK_CONFIG = { chunkSizeWords: 200, overlapWords: 30 };
 const BATCH_SIZE = 32;
 const MAX_CHUNKS = process.env.MAX_CHUNKS ? Number(process.env.MAX_CHUNKS) : Infinity;
@@ -78,6 +87,7 @@ export async function setupMentor(): Promise<Mentor> {
   const { llm: rawLlm, provider, model } = createLLMFromEnv(timeoutMs);
   const llm = new RateLimitedLLM(rawLlm, limiter);
   console.error(`🤖 Provider: ${provider} | Model: ${model}`);
+  console.error(`📁 Data dir: ${DATA_DIR}`);
 
   const files = (await readdir(DOCS_DIR)).filter((f) => FileParser.supports(f));
   if (files.length === 0) {
