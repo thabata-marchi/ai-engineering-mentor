@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { scoreCase, aggregate, type GoldenCase, type CaseResult } from '../src/core/eval.ts';
 import { parseScore } from '../src/adapters/llmJudge.ts';
 import type { Answer } from '../src/core/models.ts';
+import { NOT_FOUND, isRefusal } from '../src/core/refusal.ts';
 
 function answer(text: string, sources: string[]): Answer {
   return { text, sources: sources.map((s, i) => ({ documentId: s, source: s, position: i })) };
@@ -41,8 +42,8 @@ test('scoreCase: fonte esperada ausente e sem citação', () => {
 
 test('aggregate: calcula as taxas e ignora métricas não-aplicáveis', () => {
   const results: CaseResult[] = [
-    { question: 'a', sourceHit: true, cited: true, mentioned: true, resisted: null, sources: [] },
-    { question: 'b', sourceHit: false, cited: false, mentioned: null, resisted: null, sources: [] },
+    { question: 'a', sourceHit: true, cited: true, mentioned: true, resisted: null, refused: false, shouldRefuse: null, topScore: null, sources: [] },
+    { question: 'b', sourceHit: false, cited: false, mentioned: null, resisted: null, refused: false, shouldRefuse: null, topScore: null, sources: [] },
   ];
   const rep = aggregate(results);
   assert.equal(rep.total, 2);
@@ -68,11 +69,72 @@ test('scoreCase: resistência à injeção (mustNotContain)', () => {
 
 test('aggregate: calcula a taxa de resistência ignorando não-aplicáveis', () => {
   const results: CaseResult[] = [
-    { question: 'a', sourceHit: null, cited: false, mentioned: null, resisted: true, sources: [] },
-    { question: 'b', sourceHit: null, cited: false, mentioned: null, resisted: false, sources: [] },
-    { question: 'c', sourceHit: null, cited: false, mentioned: null, resisted: null, sources: [] },
+    { question: 'a', sourceHit: null, cited: false, mentioned: null, resisted: true, refused: false, shouldRefuse: null, topScore: null, sources: [] },
+    { question: 'b', sourceHit: null, cited: false, mentioned: null, resisted: false, refused: false, shouldRefuse: null, topScore: null, sources: [] },
+    { question: 'c', sourceHit: null, cited: false, mentioned: null, resisted: null, refused: false, shouldRefuse: null, topScore: null, sources: [] },
   ];
   assert.equal(aggregate(results).resistanceRate, 0.5); // 1 de 2 aplicáveis
+});
+
+// ---------------------------------------------------------------------------
+// Etapa 21 — recusa verificável
+// ---------------------------------------------------------------------------
+
+test('isRefusal: reconhece a frase de recusa em en e pt (sem depender de caixa)', () => {
+  assert.equal(isRefusal(NOT_FOUND.en), true);
+  assert.equal(isRefusal(`Hmm. ${NOT_FOUND.pt} Tente reformular.`), true);
+  assert.equal(isRefusal('I COULD NOT FIND THIS IN THE KNOWLEDGE BASE'), true);
+  assert.equal(isRefusal('O SRP diz que uma classe tem um motivo para mudar [1].'), false);
+});
+
+test('scoreCase: caso fora da base (mustRefuse) → shouldRefuse true; refused conforme o texto', () => {
+  const gc: GoldenCase = { question: 'como configurar Kubernetes?', mustRefuse: true };
+  const recusou = scoreCase(gc, answer(NOT_FOUND.pt, []));
+  assert.equal(recusou.shouldRefuse, true);
+  assert.equal(recusou.refused, true);
+  const inventou = scoreCase(gc, answer('Use kubectl apply -f ...', []));
+  assert.equal(inventou.refused, false);
+});
+
+test('scoreCase: caso dentro da base → shouldRefuse false; adversarial → null', () => {
+  const dentro = scoreCase({ question: 'SRP?', expectedSources: ['srp.md'] }, answer(NOT_FOUND.en, ['srp.md']));
+  assert.equal(dentro.shouldRefuse, false);
+  assert.equal(dentro.refused, true); // recusou SEM motivo → conta como falsa recusa
+  const ataque = scoreCase({ question: 'x', mustNotContain: ['HACKED'] }, answer('não', []));
+  assert.equal(ataque.shouldRefuse, null);
+});
+
+test('scoreCase: topScore = maior score entre as fontes (null sem score)', () => {
+  const a: Answer = {
+    text: 'r',
+    sources: [
+      { documentId: 'a', source: 'a.md', position: 0, score: 0.42 },
+      { documentId: 'b', source: 'b.md', position: 0, score: 0.71 },
+    ],
+  };
+  assert.equal(scoreCase({ question: 'x' }, a).topScore, 0.71);
+  assert.equal(scoreCase({ question: 'x' }, answer('r', ['a.md'])).topScore, null);
+});
+
+test('aggregate: refusalRate e falseRefusalRate contam só os casos aplicáveis', () => {
+  const base = { sourceHit: null, cited: false, mentioned: null, resisted: null, topScore: null, sources: [] };
+  const results: CaseResult[] = [
+    { ...base, question: 'fora1', refused: true, shouldRefuse: true },
+    { ...base, question: 'fora2', refused: false, shouldRefuse: true },
+    { ...base, question: 'dentro1', refused: true, shouldRefuse: false },
+    { ...base, question: 'dentro2', refused: false, shouldRefuse: false },
+    { ...base, question: 'dentro3', refused: false, shouldRefuse: false },
+    { ...base, question: 'ataque', refused: true, shouldRefuse: null },
+  ];
+  const rep = aggregate(results);
+  assert.equal(rep.refusalRate, 0.5); // 1 de 2 fora da base
+  assert.equal(rep.falseRefusalRate, 1 / 3); // 1 de 3 dentro da base
+});
+
+test('aggregate: sem casos de recusa → taxas null (não-aplicável)', () => {
+  const rep = aggregate([]);
+  assert.equal(rep.refusalRate, null);
+  assert.equal(rep.falseRefusalRate, null);
 });
 
 test('parseScore: extrai o número e limita a [0,1]', () => {

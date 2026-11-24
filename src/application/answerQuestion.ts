@@ -41,6 +41,7 @@ import {
   FLAG_MARKER,
   detectInjection,
 } from '../core/guardrails.ts';
+import { NOT_FOUND } from '../core/refusal.ts';
 
 /** The use case's dependencies — all PORTS (interfaces), not implementations. */
 export interface AnswerQuestionDeps {
@@ -62,11 +63,8 @@ export type MentorMode = 'guided' | 'direct';
 /** The answer language (Step 18). */
 export type MentorLang = 'en' | 'pt';
 
-// The "I couldn't find it" sentence, per language. Used verbatim by the prompts.
-const NOT_FOUND: Record<MentorLang, string> = {
-  en: 'I could not find this in the knowledge base.',
-  pt: 'Não encontrei isso na base de conhecimento.',
-};
+// The "I couldn't find it" sentence (NOT_FOUND) lives in core/refusal.ts (Step 21):
+// the prompts below and the eval must agree on the exact wording.
 
 // The mentor has two "ways of answering" (modes). Both are grounded in the context
 // and cite the sources — what changes is the PEDAGOGICAL stance. Each mode also
@@ -252,6 +250,7 @@ function toSource(sc: ScoredChunk): Source {
     documentId: sc.chunk.documentId,
     source: sourceName(sc),
     position: sc.chunk.position,
+    score: sc.score, // Step 21: exposes relevance (and lets the eval calibrate minScore)
   };
 }
 

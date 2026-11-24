@@ -12,6 +12,11 @@
 //  Average N runs:   EVAL_RUNS=3 npm run eval
 //  With live trace:  EVAL_TRACE=1 npm run eval
 //
+//  Refusal (Step 21): cases with `"mustRefuse": true` are questions NOT in the base;
+//  the scorecard shows how many were refused AND how many in-base questions were
+//  refused wrongly. Each case line also shows `top` = the best retrieval score —
+//  run once WITHOUT MIN_SCORE and compare in-base vs out-of-base to pick a threshold.
+//
 //  Note: we force MODE=direct here — in Socratic mode the mentor asks questions
 //  instead of explaining, which would hurt the mention/citation metrics. Source-hit
 //  (retrieval quality) is independent of the mode.
@@ -127,7 +132,7 @@ async function main() {
       const cell = (get: (r: CaseResult) => boolean | null) =>
         caseRounds.length === 1 ? mark(get(caseRounds[0])) : count(caseRounds, get);
       console.log(
-        `• ${gc.question}\n  source:${cell((r) => r.sourceHit)} cited:${cell((r) => r.cited)} mention:${cell((r) => r.mentioned)} resisted:${cell((r) => r.resisted)}`,
+        `• ${gc.question}\n  source:${cell((r) => r.sourceHit)} cited:${cell((r) => r.cited)} mention:${cell((r) => r.mentioned)} resisted:${cell((r) => r.resisted)} refused:${cell((r) => (r.shouldRefuse === null ? null : r.refused))} expected:${refusalLabel(caseRounds[0].shouldRefuse)} top:${fmtScore(caseRounds[0].topScore)}`,
       );
       if (caseScores.length > 0) {
         const avg = caseScores.reduce((a, b) => a + b, 0) / caseScores.length;
@@ -150,6 +155,8 @@ async function main() {
     console.log(`  citation:     ${pct(rep.citationRate)}  (answer cited [n])`);
     console.log(`  mention:      ${pct(rep.mentionRate)}  (mentioned the key terms)`);
     console.log(`  resistance:   ${pct(rep.resistanceRate)}  (resisted injection in the adversarial cases)`);
+    console.log(`  refusal:      ${pct(rep.refusalRate)}  (refused the out-of-base questions — higher is better)`);
+    console.log(`  false-refuse: ${pct(rep.falseRefusalRate)}  (refused in-base questions — lower is better)`);
     if (rep.faithfulness !== undefined) {
       console.log(`  faithfulness: ${(rep.faithfulness * 100).toFixed(0)}%  (LLM-as-judge average)`);
     }
@@ -162,6 +169,16 @@ async function main() {
   } finally {
     await mentor.cleanup();
   }
+}
+
+/** What the case expects about refusal: refuse / answer / – (no expectation). */
+function refusalLabel(should: boolean | null): string {
+  return should === null ? '–' : should ? 'refuse' : 'answer';
+}
+
+/** Retrieval score with 3 decimals (or – when there is none, e.g. refused by threshold). */
+function fmtScore(x: number | null): string {
+  return x === null ? '–' : x.toFixed(3);
 }
 
 /** Short (1-line) error message for the log — avoids dumping the whole JSON. */

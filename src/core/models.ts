@@ -65,6 +65,7 @@ export interface Source {
   readonly documentId: string; // from which document
   readonly source: string; // file name (e.g. clean_code.pdf)
   readonly position: number; // which piece of the document
+  readonly score?: number; // similarity to the question (0 to 1) — Step 21, calibrates minScore
 }
 
 /** The mentor's final answer + the SOURCES the information was retrieved from. */

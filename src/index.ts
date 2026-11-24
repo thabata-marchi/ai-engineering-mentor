@@ -29,6 +29,8 @@ export {
   FLAG_MARKER,
   DEFENSIVE_CLAUSE,
 } from './core/guardrails.ts';
+export { NOT_FOUND, isRefusal } from './core/refusal.ts';
+export type { RefusalLang } from './core/refusal.ts';
 export { scoreCase, aggregate } from './core/eval.ts';
 export type { GoldenCase, CaseResult, EvalReport } from './core/eval.ts';
 
