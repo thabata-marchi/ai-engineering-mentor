@@ -217,4 +217,3 @@ async function prepareMongo(
   await store.writeSignature(signature);
   console.error('💾 Index written to MongoDB. The next runs will be instant.');
 }
-

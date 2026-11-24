@@ -36,7 +36,11 @@ all on **hexagonal architecture** with **tests from day one**.
 - **Multi-provider** — pick your LLM provider (OpenRouter, OpenAI, Anthropic, Gemini) with your own key.
 - **Engineering rigor** — rate limiting, validation, observability (tracing),
   **evaluation** (golden dataset + LLM-as-judge) and **prompt-injection guardrails**
-  (defense in depth + measured resistance). **~99 tests** (node:test).
+  (defense in depth + measured resistance). **~118 tests** (node:test).
+- **Verifiable refusal** — when the answer isn't in the base, the mentor says so with a
+  fixed sentence; the eval measures how often it refuses out-of-base questions **and**
+  how often it wrongly refuses in-base ones, and an optional similarity threshold
+  (`MIN_SCORE`) refuses before even calling the LLM.
 
 > ⚠️ **Study / portfolio project.** The goal is *learning by building*. The
 > **knowledge base is not included**: books/PDFs are copyrighted, so you put your
@@ -244,6 +248,32 @@ EVAL_TRACE=1 npm run eval                       # + live trace of each step (ret
 > indexed file names. Mismatched dataset/base → **source-hit 0%** (not a retrieval
 > failure, a wrong comparison). With a **single-source base** (e.g. one book),
 > source-hit trends to 100% and the strong signal becomes mention/citation/faithfulness.
+
+**How refusal works (Step 21)** — two layers, the second one optional:
+1. **Prompt (always on):** the model is told to answer only from the retrieved context
+   and, otherwise, reply with a fixed sentence: *"I could not find this in the knowledge
+   base."* (or the Portuguese version with `MENTOR_LANG=pt`).
+2. **Similarity threshold (opt-in):** with `MIN_SCORE` (0 to 1), chunks below the
+   threshold are dropped; if **none** passes, the mentor returns the fixed sentence
+   **without calling the LLM** (deterministic, no tokens spent). Off by default.
+
+Because the sentence is fixed, refusal is **measurable**. Golden cases with
+`"mustRefuse": true` are questions that are *not* in the base; the scorecard shows:
+- **refusal** — out-of-base questions it refused (higher is better);
+- **false-refuse** — in-base questions it refused wrongly (lower is better).
+
+Read them together: a stricter threshold improves the first and hurts the second.
+
+**Calibrating `MIN_SCORE`:** the right value depends on the embedding model and on your
+base, so don't guess it. Run the eval once **without** `MIN_SCORE` and compare the `top`
+column (best retrieval score per case) of in-base vs out-of-base questions. Pick a value
+between the two groups, then re-run with it on and check that false-refuse stays at 0%:
+```bash
+npm run eval -- examples/golden.fowler.json                  # 1. read the "top" column
+MIN_SCORE=0.4 npm run eval -- examples/golden.fowler.json    # 2. re-run with your value
+```
+> The threshold path is covered by unit tests with a fake LLM (they prove the model is
+> **not** called), so it runs in CI. The eval itself uses a real LLM and stays manual.
 
 ## Security (Step 12)
 Hardening proportional to the context (runs **locally over STDIO**, no network):
