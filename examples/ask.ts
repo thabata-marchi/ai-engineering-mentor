@@ -25,6 +25,7 @@ async function main() {
     topK: mentor.topK,
     mode: mentor.mode,
     lang: mentor.lang,
+    minScore: mentor.minScore, // Step 21: optional threshold (MIN_SCORE)
   });
 
   console.log(`🎓 Mode: ${mentor.mode} | 🗄️  Store: ${mentor.usingMongo ? 'MongoDB' : 'memory'}`);

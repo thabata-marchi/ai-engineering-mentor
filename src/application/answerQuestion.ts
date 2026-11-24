@@ -22,6 +22,9 @@
 //  The system prompt ORDERS the model to answer only from the context and to admit
 //  when it doesn't know. And, regardless of the text, we always return the real
 //  `sources` of the retrieved chunks — so you can check the origin.
+//  Optionally (Step 21), a similarity threshold (`minScore`) refuses BEFORE the
+//  model: if no chunk is relevant enough, we return the fixed refusal sentence and
+//  never call the LLM. The prompt stays as the second line of defense.
 // ============================================================================
 
 import type { Answer, RetrievedContext, ScoredChunk, Source, Turn } from '../core/models.ts';
@@ -56,6 +59,11 @@ export interface AnswerQuestionDeps {
   readonly profile?: ProfilePort; // optional: records the study profile (Step 10)
   readonly maxQuestionLen?: number; // cap on the question length (Step 12)
   readonly tracer?: TracerPort; // optional: span-based observability (Step 13)
+  // optional (Step 21): minimum similarity (0 to 1) a chunk needs to be used. Chunks
+  // below it are dropped; if NONE passes, the mentor refuses WITHOUT calling the LLM.
+  // Off by default (undefined) — the right value depends on the embedding model and
+  // the base, so calibrate it with `npm run eval` before turning it on.
+  readonly minScore?: number;
 }
 
 /** The mentor's available stances. */
@@ -137,15 +145,22 @@ export class AnswerQuestion {
   private readonly systemPrompt: string;
   private readonly maxQuestionLen?: number;
   private readonly tracer: TracerPort;
+  private readonly lang: MentorLang;
+  private readonly minScore?: number;
 
   constructor(deps: AnswerQuestionDeps) {
     this.deps = deps;
     this.topK = deps.topK ?? 4;
     this.historyLimit = deps.historyLimit ?? 6;
     this.mode = deps.mode ?? 'guided'; // default: Socratic guided
-    this.systemPrompt = SYSTEM_PROMPTS[deps.lang ?? 'en'][this.mode]; // default language: English
+    this.lang = deps.lang ?? 'en'; // default language: English
+    this.systemPrompt = SYSTEM_PROMPTS[this.lang][this.mode];
     this.maxQuestionLen = deps.maxQuestionLen;
     this.tracer = deps.tracer ?? new NoopTracer(); // no tracer → no observability (zero cost)
+    if (deps.minScore !== undefined && !(deps.minScore >= 0 && deps.minScore <= 1)) {
+      throw new RangeError(`minScore must be between 0 and 1 (got ${deps.minScore})`);
+    }
+    this.minScore = deps.minScore;
   }
 
   /**
@@ -168,21 +183,41 @@ export class AnswerQuestion {
     //    (wrapped in a span → we measure time and number of retrieved sources)
     const spanRetrieval = this.tracer.startSpan('retrieval', { topK: this.topK });
     const [queryVector] = await this.deps.embedder.embed([question]);
-    const context = await this.deps.store.search(queryVector, this.topK);
+    const retrieved = await this.deps.store.search(queryVector, this.topK);
+    // THRESHOLD (Step 21): keep only chunks similar enough to the question.
+    const minScore = this.minScore;
+    const context: RetrievedContext =
+      minScore === undefined
+        ? retrieved
+        : { chunks: retrieved.chunks.filter((sc) => sc.score >= minScore) };
+    // Refuse early only when the threshold is ON and it removed everything that came back.
+    const refusedByThreshold = minScore !== undefined && context.chunks.length === 0;
     spanRetrieval.setAttribute('chunks', context.chunks.length);
+    if (minScore !== undefined) {
+      spanRetrieval.setAttribute('belowThreshold', retrieved.chunks.length - context.chunks.length);
+      spanRetrieval.setAttribute('refusedByThreshold', refusedByThreshold);
+    }
     // Guardrail (Step 14): how many retrieved snippets show signs of injection?
     const suspicious = context.chunks.filter((sc) => detectInjection(sc.chunk.text).length > 0).length;
     spanRetrieval.setAttribute('suspicious', suspicious);
     spanRetrieval.end();
 
-    // 2. AUGMENTATION — build the prompt with the HISTORY + the retrieved context.
-    const userPrompt = buildUserPrompt(question, context, history);
+    let text: string;
+    if (refusedByThreshold) {
+      // 2–3 SKIPPED (Step 21): nothing relevant enough in the base → we answer the
+      // fixed refusal sentence ourselves. Deterministic, no tokens spent, and the
+      // model gets no chance to "fill the gap" with something made up.
+      text = NOT_FOUND[this.lang];
+    } else {
+      // 2. AUGMENTATION — build the prompt with the HISTORY + the retrieved context.
+      const userPrompt = buildUserPrompt(question, context, history);
 
-    // 3. GENERATION — the LLM produces the answer following the chosen mode's rules.
-    const spanGen = this.tracer.startSpan('generation', { mode: this.mode });
-    const text = await this.deps.llm.generate(this.systemPrompt, userPrompt);
-    spanGen.setAttribute('respLen', text.length);
-    spanGen.end();
+      // 3. GENERATION — the LLM produces the answer following the chosen mode's rules.
+      const spanGen = this.tracer.startSpan('generation', { mode: this.mode });
+      text = await this.deps.llm.generate(this.systemPrompt, userPrompt);
+      spanGen.setAttribute('respLen', text.length);
+      spanGen.end();
+    }
 
     // 4. SOURCES — we always return where the context came from (traceability).
     const sources = context.chunks.map(toSource);

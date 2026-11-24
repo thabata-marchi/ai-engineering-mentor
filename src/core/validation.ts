@@ -40,3 +40,17 @@ export function validateQuestion(text: string, maxLen: number = MAX_QUESTION_LEN
   }
   return clean;
 }
+
+/**
+ * Reads MIN_SCORE (Step 21). Empty/unset → undefined (threshold off). Anything that
+ * isn't a number in [0, 1] fails LOUDLY: a typo silently turning the threshold off
+ * (or refusing everything) would be much harder to notice.
+ */
+export function parseMinScore(raw: string | undefined): number | undefined {
+  if (raw === undefined || raw.trim() === '') return undefined;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error(`MIN_SCORE must be a number between 0 and 1 (got "${raw}")`);
+  }
+  return value;
+}

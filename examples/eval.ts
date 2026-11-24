@@ -53,6 +53,7 @@ async function main() {
     topK: mentor.topK,
     mode: 'direct', // explanatory → mention/citation metrics make sense
     lang: mentor.lang,
+    minScore: mentor.minScore, // Step 21: optional threshold (MIN_SCORE)
     tracer: process.env.EVAL_TRACE ? new ConsoleTracer() : undefined,
   });
 

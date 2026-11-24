@@ -12,6 +12,7 @@ import { readdir, stat } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 
 import { FileParser } from '../src/adapters/fileParser.ts';
+import { parseMinScore } from '../src/core/validation.ts';
 import { SlidingWindowChunker } from '../src/core/chunker.ts';
 import { InMemoryVectorStore } from '../src/adapters/inMemoryVectorStore.ts';
 import { MongoVectorStore } from '../src/adapters/mongoVectorStore.ts';
@@ -57,6 +58,7 @@ export interface Mentor {
   readonly topK: number;
   readonly mode: MentorMode;
   readonly lang: MentorLang; // answer language (Step 18)
+  readonly minScore?: number; // similarity threshold, off when unset (Step 21)
   readonly usingMongo: boolean;
   cleanup(): Promise<void>;
 }
@@ -116,6 +118,9 @@ export async function setupMentor(): Promise<Mentor> {
   const mode: MentorMode = rawMode === 'direct' || rawMode === 'direto' ? 'direct' : 'guided';
   // MENTOR_LANG: 'en' (default) or 'pt' — the language the mentor answers in (Step 18).
   const lang: MentorLang = process.env.MENTOR_LANG === 'pt' ? 'pt' : 'en';
+  // MIN_SCORE (Step 21): optional similarity threshold (0 to 1). Unset = off.
+  const minScore = parseMinScore(process.env.MIN_SCORE);
+  if (minScore !== undefined) console.error(`🎯 Similarity threshold (MIN_SCORE): ${minScore}`);
 
   return {
     embedder,
@@ -127,6 +132,7 @@ export async function setupMentor(): Promise<Mentor> {
     topK,
     mode,
     lang,
+    minScore,
     usingMongo,
     async cleanup() {
       await embedder.dispose();
@@ -211,3 +217,4 @@ async function prepareMongo(
   await store.writeSignature(signature);
   console.error('💾 Index written to MongoDB. The next runs will be instant.');
 }
+

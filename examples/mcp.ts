@@ -31,6 +31,7 @@ async function main() {
     topK: mentor.topK,
     mode: mentor.mode,
     lang: mentor.lang,
+    minScore: mentor.minScore, // Step 21: optional threshold (MIN_SCORE)
   });
 
   // We pass the profile to the server too → enables the `my_progress` tool.

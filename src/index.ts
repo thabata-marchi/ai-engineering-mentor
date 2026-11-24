@@ -19,7 +19,7 @@ export { SlidingWindowChunker } from './core/chunker.ts';
 export { cosineSimilarity } from './core/similarity.ts';
 export { rankByCosine } from './core/ranking.ts';
 export { RateLimiter, RateLimitError } from './core/rateLimiter.ts';
-export { validateQuestion, ValidationError, MAX_QUESTION_LEN } from './core/validation.ts';
+export { validateQuestion, ValidationError, MAX_QUESTION_LEN, parseMinScore } from './core/validation.ts';
 export { NoopTracer, InMemoryTracer, ConsoleTracer } from './core/tracing.ts';
 export {
   detectInjection,

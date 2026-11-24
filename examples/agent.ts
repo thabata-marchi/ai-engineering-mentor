@@ -48,6 +48,7 @@ async function main() {
     topK: mentor.topK,
     mode: mentor.mode,
     lang: mentor.lang,
+    minScore: mentor.minScore, // Step 21: optional threshold (MIN_SCORE)
   });
   const server = createMentorMcpServer(useCase, mentor.profile);
 

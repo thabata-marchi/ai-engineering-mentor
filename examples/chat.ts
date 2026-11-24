@@ -31,6 +31,7 @@ async function main() {
     topK: mentor.topK,
     mode: mentor.mode,
     lang: mentor.lang,
+    minScore: mentor.minScore, // Step 21: optional threshold (MIN_SCORE)
   });
 
   // The session identifies the conversation. Fixed by default, so the history

@@ -11,6 +11,8 @@ import { InMemoryVectorStore } from '../src/adapters/inMemoryVectorStore.ts';
 import type { Document } from '../src/core/models.ts';
 import { FakeEmbedder } from './helpers/fakeEmbedder.ts';
 import { FakeLLM } from './helpers/fakeLLM.ts';
+import { NOT_FOUND } from '../src/core/refusal.ts';
+import { InMemoryTracer } from '../src/core/tracing.ts';
 
 /** Prepara um store já indexado com dois documentos de assuntos diferentes. */
 async function setup() {
@@ -114,4 +116,90 @@ test('sem contexto (store vazio) → sem fontes, mas ainda responde', async () =
   assert.equal(answer.sources.length, 0);
   assert.match(llm.lastUserPrompt, /no snippet found/i);
   assert.equal(answer.text, 'Não encontrei isso na base de conhecimento.');
+});
+
+// ---------------------------------------------------------------------------
+// Etapa 21 — limiar de similaridade (minScore)
+// ---------------------------------------------------------------------------
+
+/** LLM que conta as chamadas — para provar que o limiar NÃO chama o modelo. */
+class CountingLLM extends FakeLLM {
+  public calls = 0;
+  override async generate(systemPrompt: string, userPrompt: string): Promise<string> {
+    this.calls++;
+    return super.generate(systemPrompt, userPrompt);
+  }
+}
+
+// Pergunta sem NENHUMA palavra em comum com a base. (Com o FakeEmbedder, que usa
+// hash % 256, frases como "como configurar..." colidem por acaso com o doc de SRP.)
+test('minScore: nenhum trecho passa → recusa com NOT_FOUND, sem fontes e SEM chamar o LLM', async () => {
+  const { embedder, store } = await setup();
+  const llm = new CountingLLM('isto não deveria aparecer');
+
+  const useCase = new AnswerQuestion({ embedder, store, llm, minScore: 0.1, lang: 'pt' });
+  const answer = await useCase.execute('kubernetes helm chart');
+
+  assert.equal(llm.calls, 0);
+  assert.equal(answer.text, NOT_FOUND.pt);
+  assert.equal(answer.sources.length, 0);
+});
+
+test('minScore: recusa respeita o idioma (en por padrão)', async () => {
+  const { embedder, store } = await setup();
+  const useCase = new AnswerQuestion({ embedder, store, llm: new CountingLLM(), minScore: 0.1 });
+  const answer = await useCase.execute('kubernetes helm chart');
+  assert.equal(answer.text, NOT_FOUND.en);
+});
+
+test('minScore: descarta só os trechos abaixo do limiar e segue para o LLM', async () => {
+  const { embedder, store } = await setup();
+  const llm = new CountingLLM('resposta sobre repository [1]');
+
+  // topK 2 traz os dois documentos; só o de repository tem score acima de 0.1.
+  const useCase = new AnswerQuestion({ embedder, store, llm, topK: 2, minScore: 0.1 });
+  const answer = await useCase.execute('o que é repository?');
+
+  assert.equal(llm.calls, 1);
+  assert.deepEqual(
+    answer.sources.map((s) => s.source),
+    ['repository.md'],
+  );
+  assert.ok((answer.sources[0].score ?? 0) >= 0.1);
+  assert.doesNotMatch(llm.lastUserPrompt, /single responsibility/i); // o trecho filtrado não foi enviado
+});
+
+test('sem minScore (padrão): comportamento antigo — usa os topK e chama o LLM', async () => {
+  const { embedder, store } = await setup();
+  const llm = new CountingLLM();
+  const useCase = new AnswerQuestion({ embedder, store, llm, topK: 2 });
+  const answer = await useCase.execute('kubernetes helm chart');
+  assert.equal(llm.calls, 1);
+  assert.equal(answer.sources.length, 2);
+});
+
+test('minScore: o span de retrieval registra refusedByThreshold e belowThreshold', async () => {
+  const { embedder, store } = await setup();
+  const tracer = new InMemoryTracer(() => 0);
+  const useCase = new AnswerQuestion({
+    embedder,
+    store,
+    llm: new CountingLLM(),
+    topK: 2,
+    minScore: 0.1,
+    tracer,
+  });
+  await useCase.execute('kubernetes helm chart');
+
+  const retrieval = tracer.spans.find((s) => s.name === 'retrieval');
+  assert.equal(retrieval?.attributes.refusedByThreshold, true);
+  assert.equal(retrieval?.attributes.belowThreshold, 2);
+  assert.equal(tracer.spans.some((s) => s.name === 'generation'), false); // não houve geração
+});
+
+test('minScore fora de [0,1] → erro na construção', () => {
+  const embedder = new FakeEmbedder();
+  const store = new InMemoryVectorStore();
+  assert.throws(() => new AnswerQuestion({ embedder, store, llm: new FakeLLM(), minScore: 1.5 }), RangeError);
+  assert.throws(() => new AnswerQuestion({ embedder, store, llm: new FakeLLM(), minScore: NaN }), RangeError);
 });
