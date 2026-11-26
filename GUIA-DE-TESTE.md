@@ -52,12 +52,42 @@ It **remembers** the dialogue. Type `/progress` to see what you studied; `exit` 
 ```bash
 npm run mcp        # starts the STDIO server and waits for a client
 ```
-Inspect it visually (in another terminal):
+
+### Inspect it visually with the MCP Inspector (step by step)
+The Inspector is a web UI to poke the server by hand. Full walkthrough:
+
+**1) Be in the project folder** and make sure `.env` has a **real** key
+(`LLM_PROVIDER=openrouter` + `OPENROUTER_API_KEY=sk-or-...`, not the placeholder).
+The server **won't start without a valid key** — that's the secret guard, not a bug.
+Your material already lives in `data/`, so you don't even need `DOCS_DIR`.
+
+**2) Launch the Inspector pointing at the local server (STDIO):**
 ```bash
 npx @modelcontextprotocol/inspector node --dns-result-order=ipv4first \
   --env-file-if-exists=.env --experimental-strip-types examples/mcp.ts
 ```
-You'll see the `ask` and `my_progress` tools, the resource and the prompt.
+`--env-file-if-exists=.env` makes the server read the key from `.env` itself — so you
+never type the key on the command line. It opens `http://127.0.0.1:6274` in the browser.
+
+**3) Connect:** the fields come pre-filled (Transport = STDIO, Command = `node`, Args =
+the rest). Just click **Connect** — the dot turns **green**.
+> If you see a toast *"OAuth authorization failed for npx"* → **ignore it**. OAuth only
+> applies to HTTP transports; this server is STDIO, so it doesn't apply.
+
+**4) Test each capability (tabs at the top):**
+- **Tools** → `ask` and `my_progress` show up. Run `ask` with a `question`
+  (e.g. `what is a code smell?`) → you get the answer + **Sources**. ⚠️ *spends quota.*
+- **`my_progress`** → set a `session` (e.g. `demo`) and Run. If you ran `ask` before with
+  the **same** `session`, it shows the progress **plus "🧭 Areas that may need review"**
+  (the difficulty detection, Step 19).
+- **Resources** → click *Mentor's knowledge base* (no quota).
+- **Prompts** → `guided-study`, fill `topic`, **Get Prompt** (no quota).
+
+**5) Stop:** `Ctrl+C` in the terminal.
+
+> 💡 If your **free OpenRouter quota** is spent, `ask` returns `429` — but the server
+> still **starts and lists the tools** (listing costs nothing; only `ask` spends). So you
+> can still prove the MCP works end to end, just without live generation.
 
 ## 6. Autonomous agent
 ```bash
