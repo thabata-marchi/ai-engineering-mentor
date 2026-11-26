@@ -60,10 +60,10 @@
   },
   "dependencies": {
     "@huggingface/transformers": "^3.7.0",
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "mongodb": "^7.6.0",
     "unpdf": "^1.8.1",
-    "zod": "^4.6.3"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
