@@ -35,7 +35,13 @@ jobs:
           cache: 'npm'
 
       # 3. Instala EXATAMENTE o que está no package-lock (reprodutível).
+      #    ONNXRUNTIME_NODE_INSTALL_CUDA=skip: no Linux x64, o postinstall do
+      #    onnxruntime-node (dependência do transformers.js) tenta baixar os
+      #    binários de GPU/CUDA e falha com 404, derrubando o `npm ci`. Os
+      #    embeddings rodam na CPU, então a GPU não é necessária aqui.
       - run: npm ci
+        env:
+          ONNXRUNTIME_NODE_INSTALL_CUDA: skip
 
       # 4. Checa os tipos (não gera build — só valida).
       - run: npm run typecheck
